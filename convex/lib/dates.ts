@@ -11,3 +11,7 @@ export function isWeekend(serviceDate: string): boolean {
   const weekday = new Date(`${serviceDate}T00:00:00.000Z`).getUTCDay();
   return weekday === SATURDAY || weekday === SUNDAY;
 }
+
+export function toServiceDate(epochMs: number): string {
+  return new Date(epochMs).toISOString().slice(0, 10);
+}

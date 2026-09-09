@@ -102,11 +102,19 @@ export default defineSchema({
     payload: eventPayload,
     schoolId: v.optional(v.id("schools")),
     sourceDeviceRef: v.optional(v.string()),
+    studentId: v.optional(v.id("students")),
+    serviceDate: v.optional(v.string()),
   })
     .index("by_eventId", ["eventId"])
     .index("by_type_occurredAt", ["type", "occurredAt"])
     .index("by_school_occurredAt", ["schoolId", "occurredAt"])
-    .index("by_correlationId", ["correlationId"]),
+    .index("by_correlationId", ["correlationId"])
+    .index("by_student_serviceDate_type", ["studentId", "serviceDate", "type"]),
+
+  wallets: defineTable({
+    studentId: v.id("students"),
+    balanceKes: v.number(),
+  }).index("by_student", ["studentId"]),
 
   settings: defineTable({
     key: v.string(),

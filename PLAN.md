@@ -201,7 +201,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 
 **Sprint 1**
 - [x] D1 scaffold + schema + settings + Better Auth — typecheck clean, 10/10 tests, seed idempotent on live deployment
-- [ ] D2 enrolment PDF import + confirm screen + ingestion
+- [x] D2 enrolment PDF import + confirm screen + ingestion — typecheck, lint, build, 22/22 tests green
 - [ ] D3 expectations + missed-meal sweeper + manual triggers
 - [ ] D4 rules table + predicate interpreter + first two rules
 - [ ] D5 simulator + DLR + live count screen + demo rehearsal
@@ -272,3 +272,28 @@ _Appended as we go. Date, decision, why._
   everything under `convex/` against `convex/tsconfig.json`, which has no Vite types, so
   `import.meta.glob` in a colocated test breaks `convex dev`. Tests are not Convex
   functions and do not belong in the deployed directory.
+- **2026-09-09 — D2: `pdf-parse@1.1.1`, not the current `2.x`.** `2.x` is a pdf.js
+  rewrite that drags in `@napi-rs/canvas` for its rendering path; Convex's Node-action
+  bundler fails analysing it (`DOMMatrix is not defined`) even though only text
+  extraction is used. `1.1.1` has no canvas dependency. Its own `index.js` also runs a
+  self-test against a bundled sample PDF whenever `module.parent` is falsy — true under
+  Convex's bundler — so the action imports `pdf-parse/lib/pdf-parse.js` directly,
+  skipping that entry point. No published types; a 4-line local `.d.ts` covers the one
+  call made.
+- **2026-09-09 — D2: `events` gets `studentId` + `serviceDate`, and a new `wallets`
+  table.** FR-204/ST-04 need "does this student already have a `meal.tapped` today"
+  answered cheaply; denormalising those two fields onto `events` (same pattern as the
+  existing `schoolId`/`sourceDeviceRef`) and indexing `by_student_serviceDate_type`
+  answers it in one indexed lookup instead of a new table. `wallets` (`studentId`,
+  `balanceKes`) exists only to hold the opening balance D2's import captures — D8 owns
+  the real adapter/hysteresis shape and extends this table rather than replacing it.
+- **2026-09-09 — D2: self-serve signup always becomes a "school" user on the one seeded
+  pilot school.** No invite or admin-assignment flow exists yet, and building one is out
+  of scope for a single-school pilot. `convex/users.ts#bootstrapProfile` is marked
+  `ponytail:` at the definition; replace it with real role assignment before D9 needs a
+  county or supplier login.
+- **2026-09-09 — D2 auth UI was unscoped work, built anyway.** D1 wired Better Auth's
+  backend (component, config, role/scope guards) but no frontend ever called it — no
+  ConvexProvider, no sign-in page existed. D2 needed an authenticated caller for
+  `requireRole`, so this slice also adds `ConvexBetterAuthProvider` wiring, the
+  `/api/auth/[...all]` route, and a plain email/password sign-in form.

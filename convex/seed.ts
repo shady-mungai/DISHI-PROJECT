@@ -3,7 +3,7 @@ import { internalMutation } from "./_generated/server";
 import { addDays, isWeekend } from "./lib/dates";
 import { DEMO_SETTINGS } from "./settings";
 
-const PILOT_SCHOOL_CODE = "NRB-PILOT-01";
+export const PILOT_SCHOOL_CODE = "NRB-PILOT-01";
 const PILOT_SCHOOL_NAME = "Pilot Primary School";
 const CALENDAR_DAYS = 30;
 
