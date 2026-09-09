@@ -1,0 +1,78 @@
+# Claude Code Style & Guidelines
+
+Enforce clean code principles according to the industry-standard rules codified in:
+• JavaScript/TS/React: https://github.com/ryanmcdermott/clean-code-javascript
+• Python: https://github.com/zedr/clean-code-python
+• General Rules: https://github.com/luongnv89/claude-howto/blob/main/clean-code-rules.md
+
+## Core Constraints
+• **Function Parameters:** Must ideally be 2 or fewer.
+• **Single Responsibility:** Functions must only have a single level of abstraction and do one thing.
+• **Conditionals:** Favor early returns and encapsulated conditionals over negative conditional logic chains.
+• **Simplicity (KISS):** Favor simplicity over complexity. Write readable, straightforward code.
+• **Naming & Variables:** Prioritize explicit, searchable variable names over ambiguous abbreviations. Forbid magic numbers and hardcoded strings.
+
+## Comments Policy
+• **STRICT NO-COMMENT POLICY** for explanations. Code must be self-documenting through naming conventions.
+• **ONLY allowed comments:** `// TODO: [action]` or `// MODIFY: [reason]` as self-reminders.
+
+## Architecture & Coupling
+• **Enforce Loose Coupling:** Isolate business logic from frameworks and external tools.
+• **Pluggable Components:** Design features to be attachable/detachable via feature toggles or configuration flags.
+• **Adapter Pattern:** Wrap third-party libraries (e.g., ML algorithms, database drivers) in custom adapters so they can be seamlessly swapped out.
+
+## Type Safety & Error Handling
+• Use Python type hints for all function signatures. Use TypeScript interfaces/types for all frontend props. Strictly forbid `any`.
+• Fail fast but recover gracefully. Centralize error handling for external APIs and file parsing.
+
+## Component & State Management
+• Keep React components pure where possible. Isolate business logic into custom hooks.
+• Extract long Tailwind utility combinations into component variables/config to keep render methods clean.
+
+## Database & Data Handling (PostgreSQL)
+• Use parameterized queries or a reliable ORM/Query Builder strictly to prevent SQL injection.
+• Enforce connection pooling to minimize overhead.
+• Do not perform heavy analytical joins on the main event loop; offload or pre-aggregate where possible.
+
+## Security & Privacy (Fraud Context)
+• **Strict No-PII Logging:** Never log raw identity documents, GPS coordinates, or plaintext customer details.
+• Mask or hash sensitive user data before writing to application logs.
+
+## Testing & Verification
+• Write isolated unit tests (Jest for React, PyTest for Python) for business logic before moving to UI/API layers.
+• Mock external dependencies and database connections in unit tests to ensure they execute instantly and consume minimal resources.
+• Always delete dead code, unused variables, and stale imports immediately to save token context.
+
+## Git Workflow & Issue Management (GitHub MCP)
+• **Branching is mandatory.** Always remind the user to create a dedicated branch (`feature/[name]` or `fix/[name]`) before generating or modifying code, even as a solo developer.
+• **Issue Reporting:** When encountering bugs, blockers, or necessary architectural refactors, autonomously use the GitHub MCP to create an issue using the structure defined in the `ISSUE_TEMPLATES`; the same applies to `PULL_REQUEST_TEMPLATE` when defining PRs.
+
+## AI Assistant Behavior Guidelines
+• **Extreme Conciseness:** Responses must be straight to the point. No fluff, no filler, no conversational padding.
+• **Autonomy vs. Clarification:** Make reasonable, industry-standard assumptions to keep momentum. ONLY ask questions if critical context is completely missing and work cannot proceed. Do not act helpless.
+• **Research vs. Guessing:** Perform targeted, precise web research if unsure about library syntax. Do not guess. Do not over-research and waste tokens.
+• **Fluid Documentation:** Treat initial project documentation as a living guide. Adapt dynamically to feasibility changes.
+
+## Performance & Hardware Constraints
+• **Hardware Limits:** Intel Core i7-9700 (3.00 GHz), 48GB RAM (WSL), 1.38TB storage. STRICT VRAM LIMIT: 128MB.
+• **Dependency Selection:** Strictly select libraries and models optimized for CPU/RAM execution. Avoid GPU-heavy tools.
+• **Performance Verification:** Ensure algorithmic logic respects time and space complexity efficiency.
+
+## Claude Code Active Skills & Tooling
+Leverage the following enabled skills natively available in this environment to optimize workflows, enforce standards, and prevent hallucinations. Use these tools autonomously when appropriate:
+• **Development & Architecture:** `api-design`, `backend-patterns`, `coding-standards`, `frontend-patterns`, `ui-ux-pro-max`
+• **Testing & Verification:** `tdd-workflow`, `e2e-testing`, `verification-loop`, `eval-harness`
+• **Security & Research:** `security-review`, `search-first`, `market-research`
+• **Content & Strategy:** `article-writing`, `content-engine`, `frontend-slides`, `strategic-compact`, `investor-materials`, `investor-outreach`
+
+### Skill Usage Rules
+• Rely on `search-first` before guessing any API syntax or library integration.
+• Use `tdd-workflow` and `verification-loop` to validate code against the time/space complexity and hardware constraints.
+• Apply `security-review` to ensure strict adherence to the No-PII logging and SQL injection constraints.
+
+## Claude Autonomous Agents
+Leverage the following specific agent profiles (from `~/.claude/agents`) to handle targeted workflows:
+• `planner.md`: Invoke before starting a new sprint or complex feature to break down tasks systematically.
+• `tdd-guide.md` & `e2e-runner.md`: Embody for test-driven development cycles and end-to-end performance verification.
+• `code-reviewer.md` & `refactor-cleaner.md`: Use proactively before finalizing a branch to enforce the clean code, strict typing, and loose coupling constraints.
+• `build-error-resolver.md`: Trigger immediately upon encountering compilation failures, dependency clashes or runtime errors to debug without guessing.
