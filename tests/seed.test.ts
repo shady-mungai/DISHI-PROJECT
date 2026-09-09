@@ -1,9 +1,9 @@
 import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { internal } from "../_generated/api";
-import schema from "../schema";
+import { internal } from "../convex/_generated/api";
+import schema from "../convex/schema";
 
-const modules = import.meta.glob("../{seed,settings}.ts");
+const modules = import.meta.glob("../convex/**/*.ts");
 
 const START_DATE = "2026-09-14";
 const CALENDAR_DAYS = 7;

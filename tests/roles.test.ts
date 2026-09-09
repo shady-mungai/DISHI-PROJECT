@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isInSchoolScope, isRoleAllowed, type Role } from "../lib/roles";
+import { isInSchoolScope, isRoleAllowed, type Role } from "../convex/lib/roles";
 
 const SCHOOL_A = "school_a";
 const SCHOOL_B = "school_b";
