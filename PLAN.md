@@ -175,7 +175,7 @@ and a wallet oscillating at the threshold emits exactly one warning.
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | **Guardian phone numbers not available with the name list** | High | Blocks the entire demo | The list is only half the input. Chase numbers, tags and opening balances **before D2**. Demo runs on real handsets in the room. |
-| **Data residency under DPA 2019** — Convex Cloud is US-hosted; children's PII crosses a border | High | Programme-level | **Accepted, tracked.** Demo and build run on the 30-child list with consenting adults' handsets, not live programme data. Before any real guardian data: confirm Convex region options or the self-hosted path, and document the transfer basis for ODPC. Decision point end of Week 2. |
+| **Data residency under DPA 2019** — children's PII leaves Kenya | Medium | Programme-level | **Downgraded on D1: the deployment provisioned to `eu-west-1`, not the US.** EU hosting puts this in adequacy-safeguard territory rather than a bare cross-border transfer, which is a materially easier ODPC conversation. Still not in-country. Demo runs on consenting adults' handsets, not live programme data. Confirm the transfer basis and whether EU is acceptable to the county before real guardian data. Decision point end of Week 2. |
 | **USSD short code provisioning lead time** (weeks in KE) | High | Blocks P-07 demo | Apply **Day 1**, before any code. Build against the AT sandbox short code meanwhile. |
 | **ODPC registration** before live guardian data (NFR-506) | High | Blocks pilot, not build | Start Day 1. Paperwork, not engineering. |
 | **PDF has no usable text layer** after all | Medium | Half a day | Parser sits behind an interface. Fallback for 30 names is transcribing once — cheaper than building OCR. Verify the actual file on D1. |
@@ -200,7 +200,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 ### Progress board
 
 **Sprint 1**
-- [ ] D1 scaffold + schema + settings + Convex Auth
+- [x] D1 scaffold + schema + settings + Better Auth — typecheck clean, 10/10 tests, seed idempotent on live deployment
 - [ ] D2 enrolment PDF import + confirm screen + ingestion
 - [ ] D3 expectations + missed-meal sweeper + manual triggers
 - [ ] D4 rules table + predicate interpreter + first two rules
@@ -246,3 +246,29 @@ _Appended as we go. Date, decision, why._
   parser sits behind an interface with hand-transcription as the fallback. Upload is part of the
   demo narrative, so the screen and parse must visibly work. All timings become settings with
   manual triggers — needed for testing absence triggers regardless of the demo.
+
+- **2026-09-09 — Better Auth, not Convex Auth.** Reversal of the decision above, made on
+  D1 after checking current docs. Convex's own documentation marks Convex Auth beta —
+  "isn't complete and may change in backward-incompatible ways" — with Next.js support
+  under active development. The official `@convex-dev/better-auth` component keeps auth
+  data inside the Convex deployment via its adapter, which is the residency property
+  Convex Auth was chosen for, without the beta risk, and ships a complete Next.js App
+  Router guide. Clerk remains ruled out on residency. Versions pinned: convex 1.45.0,
+  @convex-dev/better-auth 0.12.5, better-auth 1.6.30.
+- **2026-09-09 — Event payload typing.** `events.payload` is a flat scalar record
+  (`string | number | boolean`), not `any` — every payload in the catalogue is flat
+  scalars, so this is truthful rather than permissive, keeps CLAUDE.md's no-`any` rule,
+  and tolerates additive change per NFR-804. Per-event-type validators get added as each
+  type is implemented, starting D2.
+- **2026-09-09 — Role logic split from Convex.** Pure predicates live in
+  `convex/lib/roles.ts` with zero framework imports; ctx-bound guards in
+  `convex/lib/authz.ts`. FR-801 and NFR-404 are therefore testable without the harness,
+  and the seven role/scope tests run in ~1s with no deployment.
+- **2026-09-09 — Deployment region is `eu-west-1`.** Convex provisioned the dev deployment
+  to EU West, not US East as assumed when the residency risk was written. Risk downgraded
+  from High to Medium and the row rewritten. Verify the same region applies to the
+  production deployment before the pilot.
+- **2026-09-09 — Tests live in `tests/`, not `convex/`.** The Convex CLI typechecks
+  everything under `convex/` against `convex/tsconfig.json`, which has no Vite types, so
+  `import.meta.glob` in a colocated test breaks `convex dev`. Tests are not Convex
+  functions and do not belong in the deployed directory.
