@@ -344,3 +344,9 @@ _Appended as we go. Date, decision, why._
 - **2026-09-13 — D4: `/service-day` takes a date picker.** Materialisation is gated on the
   calendar, and the demo was built on a Sunday; picking any seeded weekday is the honest
   fix — the seed still marks weekends as holidays (P-02) rather than faking school days.
+- **2026-09-13 — D4: Celcom Africa is the SMS provider; Africa's Talking stays as a second
+  adapter.** Ported from an existing OTP service: JSON POST to `CELCOM_URL` with
+  `apikey`, `partnerID`, `shortcode`, optional `pass_type`, `mobile`, `message`; success
+  is HTTP 200 and (when present) `responses[0]["respose-code"] === 200` — the gateway's
+  own misspelling, so both spellings are read. Set the `smsChannel` setting to `celcom`
+  after `npx convex env set CELCOM_URL/CELCOM_API_KEY/CELCOM_PARTNER_ID/CELCOM_SHORTCODE`.

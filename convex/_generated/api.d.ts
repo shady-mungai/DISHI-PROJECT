@@ -19,6 +19,7 @@ import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as lib_authz from "../lib/authz.js";
 import type * as lib_channels_africasTalking from "../lib/channels/africasTalking.js";
+import type * as lib_channels_celcom from "../lib/channels/celcom.js";
 import type * as lib_channels_console from "../lib/channels/console.js";
 import type * as lib_channels_index from "../lib/channels/index.js";
 import type * as lib_channels_types from "../lib/channels/types.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   ingest: typeof ingest;
   "lib/authz": typeof lib_authz;
   "lib/channels/africasTalking": typeof lib_channels_africasTalking;
+  "lib/channels/celcom": typeof lib_channels_celcom;
   "lib/channels/console": typeof lib_channels_console;
   "lib/channels/index": typeof lib_channels_index;
   "lib/channels/types": typeof lib_channels_types;
