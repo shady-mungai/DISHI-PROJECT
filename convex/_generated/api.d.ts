@@ -24,17 +24,20 @@ import type * as lib_channels_console from "../lib/channels/console.js";
 import type * as lib_channels_index from "../lib/channels/index.js";
 import type * as lib_channels_types from "../lib/channels/types.js";
 import type * as lib_dates from "../lib/dates.js";
+import type * as lib_deliveryReport from "../lib/deliveryReport.js";
 import type * as lib_enrolmentParser from "../lib/enrolmentParser.js";
 import type * as lib_events from "../lib/events.js";
 import type * as lib_hmac from "../lib/hmac.js";
 import type * as lib_mask from "../lib/mask.js";
 import type * as lib_predicate from "../lib/predicate.js";
 import type * as lib_roles from "../lib/roles.js";
+import type * as lib_simulation from "../lib/simulation.js";
 import type * as lib_template from "../lib/template.js";
 import type * as notifications from "../notifications.js";
 import type * as rules from "../rules.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
+import type * as simulator from "../simulator.js";
 import type * as users from "../users.js";
 
 import type {
@@ -60,17 +63,20 @@ declare const fullApi: ApiFromModules<{
   "lib/channels/index": typeof lib_channels_index;
   "lib/channels/types": typeof lib_channels_types;
   "lib/dates": typeof lib_dates;
+  "lib/deliveryReport": typeof lib_deliveryReport;
   "lib/enrolmentParser": typeof lib_enrolmentParser;
   "lib/events": typeof lib_events;
   "lib/hmac": typeof lib_hmac;
   "lib/mask": typeof lib_mask;
   "lib/predicate": typeof lib_predicate;
   "lib/roles": typeof lib_roles;
+  "lib/simulation": typeof lib_simulation;
   "lib/template": typeof lib_template;
   notifications: typeof notifications;
   rules: typeof rules;
   seed: typeof seed;
   settings: typeof settings;
+  simulator: typeof simulator;
   users: typeof users;
 }>;
 

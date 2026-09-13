@@ -15,3 +15,11 @@ export function isWeekend(serviceDate: string): boolean {
 export function toServiceDate(epochMs: number): string {
   return new Date(epochMs).toISOString().slice(0, 10);
 }
+
+export const SERVICE_START_UTC = { hour: 9, minute: 30 };
+
+export function serviceStartFor(serviceDate: string): number {
+  const hour = String(SERVICE_START_UTC.hour).padStart(2, "0");
+  const minute = String(SERVICE_START_UTC.minute).padStart(2, "0");
+  return Date.parse(`${serviceDate}T${hour}:${minute}:00.000Z`);
+}

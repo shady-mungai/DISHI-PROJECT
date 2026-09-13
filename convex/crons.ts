@@ -1,9 +1,10 @@
 import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
+import { SERVICE_START_UTC } from "./lib/dates";
 
 // 12:30 Nairobi (UTC+3) — real service-window start. The sweep is not a cron:
 // startSchoolDay schedules it at the resolved cutoff via runAt.
-const SERVICE_START_UTC_CRON = "30 9 * * *";
+const SERVICE_START_UTC_CRON = `${SERVICE_START_UTC.minute} ${SERVICE_START_UTC.hour} * * *`;
 
 const crons = cronJobs();
 

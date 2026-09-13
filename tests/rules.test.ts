@@ -62,6 +62,34 @@ async function runScheduled(t: Harness): Promise<void> {
 }
 
 describe("rules engine", () => {
+  test("a delivery report flips the notification and emits a notification.delivered event (FR-507)", async () => {
+    const t = convexTest(schema, modules);
+    await seedWorld(t);
+    await t.mutation(internal.ingest.recordBatch, {
+      deviceRef: DEVICE_REF,
+      events: [{ eventId: "tap-1", tagUid: TAG_UID, occurredAt: SERVICE_START_AT }],
+    });
+    await runScheduled(t);
+    const providerMessageId = (await notifications(t))[0].providerMessageId!;
+
+    const matched = await t.mutation(internal.notifications.recordDeliveryReport, {
+      providerMessageId,
+      delivered: true,
+      reason: "Delivered",
+    });
+    const unknown = await t.mutation(internal.notifications.recordDeliveryReport, {
+      providerMessageId: "nope",
+      delivered: false,
+      reason: "x",
+    });
+
+    expect(matched).not.toBeNull();
+    expect(unknown).toBeNull();
+    expect((await notifications(t))[0].status).toBe("delivered");
+    const events = await t.run(async (ctx) => await ctx.db.query("events").collect());
+    expect(events.filter((event) => event.type === "notification.delivered")).toHaveLength(1);
+  });
+
   test("a tap becomes one delivered guardian SMS (P-01)", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t);

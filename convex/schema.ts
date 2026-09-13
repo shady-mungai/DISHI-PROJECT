@@ -24,6 +24,7 @@ export const eventPayload = v.record(
 export const notificationStatus = v.union(
   v.literal("queued"),
   v.literal("sent"),
+  v.literal("delivered"),
   v.literal("failed"),
 );
 
@@ -174,6 +175,7 @@ export default defineSchema({
   })
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_correlationId", ["correlationId"])
+    .index("by_providerMessageId", ["providerMessageId"])
     .index("by_school", ["schoolId"]),
 
   settings: defineTable({

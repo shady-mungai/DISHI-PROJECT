@@ -4,12 +4,16 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { toServiceDate } from "@/convex/lib/dates";
 import { SchoolGate } from "@/app/components/SchoolGate";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 
 const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
 const DATE_CLASS = "rounded border border-zinc-300 px-2 py-1 text-base font-normal";
 const NOTIFICATION_CLASS = "flex gap-3 rounded border border-zinc-200 px-3 py-2";
+const FIELD_CLASS = "w-24 rounded border border-zinc-300 px-2 py-1";
+const DEFAULT_SEED = 1;
+const DEFAULT_NO_SHOWS = 3;
+const DEFAULT_BATCH_SIZE = 1;
 const STAT_CLASS = "flex flex-col rounded border border-zinc-200 p-4";
 
 export default function ServiceDayPage() {
@@ -25,6 +29,12 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   const notifications = useQuery(api.notifications.recentForSchool, { schoolId });
   const runExpectations = useMutation(api.expectations.runExpectationsNow);
   const runSweep = useMutation(api.expectations.runSweepNow);
+  const simulate = useAction(api.simulator.runServiceDay);
+  const [seed, setSeed] = useState(DEFAULT_SEED);
+  const [noShowCount, setNoShowCount] = useState(DEFAULT_NO_SHOWS);
+  const [batchSize, setBatchSize] = useState(DEFAULT_BATCH_SIZE);
+
+  const expected = summary ? summary.pending + summary.fulfilled + summary.missed : undefined;
 
   async function trigger(run: () => Promise<string>) {
     setBusy(true);
@@ -46,6 +56,11 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
     return `Expectations: ${result.created} created, ${result.existing} already existed${result.chained ? " (more pages running)" : ""}.`;
   }
 
+  async function describeSimulation(): Promise<string> {
+    const result = await simulate({ schoolId, serviceDate, seed, noShowCount, batchSize });
+    return `Simulated: ${result.posted} taps in ${result.batches} batch(es), ${result.accepted} accepted, ${result.duplicate} duplicate, ${result.rejected} rejected, ${result.noShows} no-shows, ${result.elapsedMs} ms.`;
+  }
+
   async function describeSweep(): Promise<string> {
     const result = await runSweep({ schoolId, serviceDate });
     return `Sweep: ${result.missed} marked missed${result.chained ? " (more batches running)" : ""}.`;
@@ -57,6 +72,9 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         Service day
         <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} className={DATE_CLASS} />
       </label>
+      <p className="text-5xl font-semibold">
+        {summary?.fulfilled ?? "…"} <span className="text-2xl text-zinc-500">/ {expected ?? "…"} served</span>
+      </p>
       <div className="grid grid-cols-3 gap-4">
         <Stat label="Pending" value={summary?.pending} />
         <Stat label="Served" value={summary?.fulfilled} />
@@ -68,6 +86,14 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         </button>
         <button type="button" disabled={busy} className={BUTTON_CLASS} onClick={() => void trigger(describeSweep)}>
           Run sweep now
+        </button>
+      </div>
+      <div className="flex flex-wrap items-end gap-3 text-sm">
+        <NumberField label="Seed" value={seed} onChange={setSeed} />
+        <NumberField label="No-shows" value={noShowCount} onChange={setNoShowCount} />
+        <NumberField label="Batch size" value={batchSize} onChange={setBatchSize} />
+        <button type="button" disabled={busy} className={BUTTON_CLASS} onClick={() => void trigger(describeSimulation)}>
+          Simulate taps
         </button>
       </div>
       {message && <p className="text-sm text-zinc-600">{message}</p>}
@@ -85,6 +111,15 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-zinc-500">{label}</span>
+      <input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className={FIELD_CLASS} />
+    </label>
   );
 }
 

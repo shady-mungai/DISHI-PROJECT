@@ -1,11 +1,13 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { requireSchoolScope } from "./lib/authz";
+import { recordEvent } from "./lib/events";
 import { maskMsisdn } from "./lib/mask";
 import { notificationStatus } from "./schema";
 import { readSetting, SettingKey } from "./settings";
 
 const RECENT_LIMIT = 20;
+const SCHEMA_VERSION = 1;
 const DEFAULT_SMS_CHANNEL = "console";
 
 export const getForDelivery = internalQuery({
@@ -40,6 +42,40 @@ export const markResult = internalMutation({
       sentAt: args.status === "sent" ? Date.now() : undefined,
     });
     return null;
+  },
+});
+
+// FR-507: gateway DLR lands here. Unknown ids are ignored (the gateway may
+// report on messages sent by another system sharing the sender id).
+export const recordDeliveryReport = internalMutation({
+  args: { providerMessageId: v.string(), delivered: v.boolean(), reason: v.string() },
+  returns: v.union(v.null(), v.id("notifications")),
+  handler: async (ctx, args) => {
+    const notification = await ctx.db
+      .query("notifications")
+      .withIndex("by_providerMessageId", (q) => q.eq("providerMessageId", args.providerMessageId))
+      .first();
+    if (!notification) {
+      return null;
+    }
+    const now = Date.now();
+    await ctx.db.patch(notification._id, {
+      status: args.delivered ? "delivered" : "failed",
+      failureReason: args.delivered ? undefined : args.reason,
+    });
+    await recordEvent(ctx, {
+      eventId: `notification.dlr:${notification._id}:${args.providerMessageId}`,
+      type: args.delivered ? "notification.delivered" : "notification.failed",
+      occurredAt: now,
+      recordedAt: now,
+      schemaVersion: SCHEMA_VERSION,
+      correlationId: notification.correlationId,
+      payload: args.delivered
+        ? { notification_id: notification._id, delivered_at: now }
+        : { notification_id: notification._id, failure_reason: args.reason },
+      schoolId: notification.schoolId,
+    });
+    return notification._id;
   },
 });
 

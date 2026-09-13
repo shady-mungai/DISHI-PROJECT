@@ -204,7 +204,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D2 enrolment PDF import + confirm screen + ingestion — typecheck, lint, build, 22/22 tests green
 - [x] D3 expectations + missed-meal sweeper + manual triggers — typecheck, lint, build, 28/28 tests green
 - [x] D4 rules table + predicate interpreter + first two rules — typecheck, lint, 35/35 tests green, rules seeded on live deployment
-- [ ] D5 simulator + DLR + live count screen + demo rehearsal
+- [x] D5 simulator + DLR + live count screen + demo rehearsal — typecheck, lint, build, 44/44 tests green; rehearsed on live deployment: 32 expectations → 29 taps via /ingest (940 ms) → replay 29 duplicates → sweep 3 missed → 32 SMS via console channel → DLR flips to delivered
 
 **Sprint 2**
 - [ ] D6 policy layer + templates + cost instrumentation
@@ -350,3 +350,25 @@ _Appended as we go. Date, decision, why._
   is HTTP 200 and (when present) `responses[0]["respose-code"] === 200` — the gateway's
   own misspelling, so both spellings are read. Set the `smsChannel` setting to `celcom`
   after `npx convex env set CELCOM_URL/CELCOM_API_KEY/CELCOM_PARTNER_ID/CELCOM_SHORTCODE`.
+- **2026-09-13 — D5: the simulator is a Convex action that posts to its own `/ingest`.**
+  `simulator.runServiceDay` provisions one `SIM-READER-01:<school>` device per school (secret
+  derived server-side, never typed), plans the day with `lib/simulation.ts` (pure, mulberry32
+  PRNG, event ids `sim:<seed>:<date>:<tag>`), and HMAC-signs each batch exactly as hardware
+  would — so the demo exercises the real trust boundary and replaying a seed is idempotent
+  (NFR-805, NFR-204). Scenarios are two numbers: `noShowCount` (absence cohort) and
+  `batchSize` (1 = live reader, roster-sized = offline reader flushing). Taps for a day
+  other than today are stamped inside that day's real window so ingest files them under
+  the picked date; they arrive clock-skew flagged, which is truthful.
+- **2026-09-13 — D5: DLR is `POST /dlr?token=<DLR_TOKEN>`.** Gateways don't sign callbacks;
+  a shared token in the URL is the gate. `lib/deliveryReport.ts` accepts JSON or form bodies
+  and several id/status spellings because the Celcom DLR field names are unconfirmed
+  (TODO in that file). A report for an unknown provider id is a 200 `matched:false`, not an
+  error. Matched reports flip the notification to `delivered`/`failed` and append
+  `notification.delivered`/`notification.failed` events through `recordEvent`.
+- **2026-09-13 — D5: the live count screen is `/service-day`, not a new page.** It already
+  had the reactive summary; it now leads with `served / expected`, carries the simulator
+  controls, and lists recent notifications. Demo order on that page: pick a seeded weekday
+  → Run expectations → Simulate taps → Run sweep. D11 grows this into the school dashboard.
+- **2026-09-13 — CLI rehearsal as a signed-in user:** `npx convex run <fn> --identity
+  '{"subject":"<authUserId>","sessionId":"<betterAuth session _id>"}'` — the Better Auth
+  component resolves the user through the session, so `subject` alone is not enough.

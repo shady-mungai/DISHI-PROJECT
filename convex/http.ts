@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
 import { internal } from "./_generated/api";
 import { hmacSha256Hex, timingSafeEqualHex } from "./lib/hmac";
+import { bodyToRecord, parseDeliveryReport } from "./lib/deliveryReport";
 import { MAX_INGEST_BATCH_EVENTS, parseIngestBody } from "./ingest";
 
 const http = httpRouter();
@@ -44,6 +45,28 @@ http.route({
 
     const results = await ctx.runMutation(internal.ingest.recordBatch, { deviceRef, events });
     return Response.json({ results }, { status: 200 });
+  }),
+});
+
+// Gateway callbacks carry no signature; the shared token in the query string
+// is the only thing stopping anyone from marking messages delivered.
+http.route({
+  path: "/dlr",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const token = new URL(req.url).searchParams.get("token");
+    const expectedToken = process.env.DLR_TOKEN;
+    if (!expectedToken || !token || !timingSafeEqualHex(token, expectedToken)) {
+      return Response.json({ error: "invalid_token" }, { status: 401 });
+    }
+
+    const report = parseDeliveryReport(bodyToRecord(req.headers.get("Content-Type"), await req.text()));
+    if (!report) {
+      return Response.json({ error: "invalid_body" }, { status: 400 });
+    }
+
+    const notificationId = await ctx.runMutation(internal.notifications.recordDeliveryReport, report);
+    return Response.json({ matched: notificationId !== null }, { status: 200 });
   }),
 });
 
