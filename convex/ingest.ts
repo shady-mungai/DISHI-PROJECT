@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { fulfilExpectation } from "./expectations";
 import { toServiceDate } from "./lib/dates";
 import { readSetting, SettingKey } from "./settings";
 
@@ -181,6 +182,7 @@ async function recordTap(
     studentId: student._id,
     serviceDate,
   });
+  await fulfilExpectation(ctx, student._id, serviceDate);
 
   return {
     eventId: event.eventId,

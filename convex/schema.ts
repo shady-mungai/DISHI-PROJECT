@@ -10,6 +10,12 @@ export const userRole = v.union(
 
 export const settingValue = v.union(v.string(), v.number(), v.boolean());
 
+export const expectationStatus = v.union(
+  v.literal("pending"),
+  v.literal("fulfilled"),
+  v.literal("missed"),
+);
+
 export const eventPayload = v.record(
   v.string(),
   v.union(v.string(), v.number(), v.boolean()),
@@ -110,6 +116,18 @@ export default defineSchema({
     .index("by_school_occurredAt", ["schoolId", "occurredAt"])
     .index("by_correlationId", ["correlationId"])
     .index("by_student_serviceDate_type", ["studentId", "serviceDate", "type"]),
+
+  expectations: defineTable({
+    schoolId: v.id("schools"),
+    studentId: v.id("students"),
+    serviceDate: v.string(),
+    windowStart: v.number(),
+    windowEnd: v.number(),
+    cutoffAt: v.number(),
+    status: expectationStatus,
+  })
+    .index("by_student_serviceDate", ["studentId", "serviceDate"])
+    .index("by_school_serviceDate_status", ["schoolId", "serviceDate", "status"]),
 
   wallets: defineTable({
     studentId: v.id("students"),

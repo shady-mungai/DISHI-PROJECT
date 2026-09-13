@@ -9,9 +9,11 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as devices from "../devices.js";
 import type * as enrolment from "../enrolment.js";
 import type * as enrolment_parsePdf from "../enrolment/parsePdf.js";
+import type * as expectations from "../expectations.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as lib_authz from "../lib/authz.js";
@@ -31,9 +33,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
   devices: typeof devices;
   enrolment: typeof enrolment;
   "enrolment/parsePdf": typeof enrolment_parsePdf;
+  expectations: typeof expectations;
   http: typeof http;
   ingest: typeof ingest;
   "lib/authz": typeof lib_authz;

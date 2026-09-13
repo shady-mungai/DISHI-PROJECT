@@ -7,6 +7,11 @@
 const MIN_NAME_LENGTH = 3;
 const ENUMERATION_PREFIX = /^(?:\d+[.)]|[-*•])\s*/;
 const COLUMN_SPLIT = /\t|\s{2,}/;
+const INDEX_COLUMN = /^(?:#|\d+)$/;
+const MSISDN_COLUMN = /^\+?\d{9,15}$/;
+const TAG_UID_COLUMN = /^[0-9a-f]{2}(?::[0-9a-f]{2}){3,}$/i;
+const AMOUNT_COLUMN = /^\d+(?:\.\d+)?$/;
+const WORD_COLUMN = /^[a-z][a-z ]*$/i;
 const HEADER_WORDS = new Set([
   "name",
   "names",
@@ -18,43 +23,62 @@ const HEADER_WORDS = new Set([
   "student",
   "students",
   "full name",
+  "guardian",
+  "relationship",
+  "nfc tag uid",
+  "tag uid",
 ]);
 
 export type ParsedStudentGuess = {
   rawLine: string;
   fullName: string;
   className: string;
+  guardianMsisdn: string;
+  guardianRelationship: string;
+  tagUid: string;
+  openingBalanceKes: number;
 };
 
 export function parseRosterText(text: string): ParsedStudentGuess[] {
   return text
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(isLikelyNameLine)
-    .map(toGuess);
+    .map((line) => ({ rawLine: line.trim(), columns: toColumns(line) }))
+    .filter(({ columns }) => isLikelyNameRow(columns))
+    .map(({ rawLine, columns }) => toGuess(rawLine, columns));
 }
 
-function isLikelyNameLine(line: string): boolean {
-  const stripped = line.replace(ENUMERATION_PREFIX, "").trim();
-  if (stripped.length < MIN_NAME_LENGTH) {
-    return false;
-  }
-  if (HEADER_WORDS.has(stripped.toLowerCase())) {
-    return false;
-  }
-  return /[a-zA-Z]/.test(stripped);
+function toGuess(rawLine: string, columns: string[]): ParsedStudentGuess {
+  const [fullName, className = "", ...extraColumns] = columns;
+  const guardianMsisdn = extraColumns.find((column) => MSISDN_COLUMN.test(column)) ?? "";
+  const amounts = extraColumns.filter((column) => AMOUNT_COLUMN.test(column) && column !== guardianMsisdn);
+  return {
+    rawLine,
+    fullName,
+    className,
+    guardianMsisdn,
+    guardianRelationship: extraColumns.find((column) => WORD_COLUMN.test(column))?.toLowerCase() ?? "",
+    tagUid: extraColumns.find((column) => TAG_UID_COLUMN.test(column)) ?? "",
+    openingBalanceKes: Number(amounts.at(-1) ?? 0),
+  };
 }
 
-function toGuess(line: string): ParsedStudentGuess {
-  const stripped = line.replace(ENUMERATION_PREFIX, "").trim();
-  const columns = stripped
+function toColumns(line: string): string[] {
+  const columns = line
+    .trim()
+    .replace(ENUMERATION_PREFIX, "")
     .split(COLUMN_SPLIT)
     .map((column) => column.trim())
     .filter(Boolean);
+  return INDEX_COLUMN.test(columns[0] ?? "") ? columns.slice(1) : columns;
+}
 
-  return {
-    rawLine: line,
-    fullName: columns[0] ?? stripped,
-    className: columns.length > 1 ? columns[columns.length - 1] : "",
-  };
+function isLikelyNameRow(columns: string[]): boolean {
+  const [first] = columns;
+  if (!first || first.length < MIN_NAME_LENGTH) {
+    return false;
+  }
+  if (HEADER_WORDS.has(first.toLowerCase())) {
+    return false;
+  }
+  return /[a-zA-Z]/.test(first);
 }

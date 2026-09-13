@@ -202,7 +202,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 **Sprint 1**
 - [x] D1 scaffold + schema + settings + Better Auth — typecheck clean, 10/10 tests, seed idempotent on live deployment
 - [x] D2 enrolment PDF import + confirm screen + ingestion — typecheck, lint, build, 22/22 tests green
-- [ ] D3 expectations + missed-meal sweeper + manual triggers
+- [x] D3 expectations + missed-meal sweeper + manual triggers — typecheck, lint, build, 28/28 tests green
 - [ ] D4 rules table + predicate interpreter + first two rules
 - [ ] D5 simulator + DLR + live count screen + demo rehearsal
 
@@ -297,3 +297,23 @@ _Appended as we go. Date, decision, why._
   ConvexProvider, no sign-in page existed. D2 needed an authenticated caller for
   `requireRole`, so this slice also adds `ConvexBetterAuthProvider` wiring, the
   `/api/auth/[...all]` route, and a plain email/password sign-in form.
+- **2026-09-12 — D3: the sweep is scheduler-driven, not a cron.** `startSchoolDay`
+  resolves the window from `serviceWindowMinutes` + `cutoffOffsetMinutes` and calls
+  `ctx.scheduler.runAt(cutoffAt, sweepMissed)` in the same transaction that writes the
+  first page of expectations — so the cutoff moves with the settings and there is no
+  polling cron guessing when "cutoff" is. The only cron (`convex/crons.ts`) fires
+  materialisation at 09:30 UTC (12:30 Nairobi, the real window start); the demo path is
+  the same code behind "Run expectations now" at `/service-day`.
+- **2026-09-12 — D3: materialisation pages with `.paginate()` + cursor, the sweep with
+  `.take()` and no cursor.** Students don't change while being paged, so a cursor is
+  needed; swept rows flip out of the `pending` index range, so re-taking the head is the
+  next batch. Both chain via `runAfter(0, …)`. A tap that lands before materialisation
+  still counts: `materialiseStudent` checks `by_student_serviceDate_type` for a
+  `meal.tapped` and creates the row already `fulfilled`. A tap after the sweep leaves the
+  row `missed` — the guardian has already been told.
+- **2026-09-12 — D3: no calendar row = not a school day.** Materialisation only runs
+  when `academicCalendar` says `isSchoolDay`; a missing row is treated as a holiday and
+  reported as `not_school_day` rather than guessed. Seed the calendar before the demo.
+- **2026-09-12 — D3: sign-in/profile gate extracted to `app/components/SchoolGate.tsx`.**
+  The enrolment page still carries its inline copy because it has uncommitted parser WIP
+  in the D2 worktree; swap it to `SchoolGate` when that lands.

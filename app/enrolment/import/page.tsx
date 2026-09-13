@@ -52,13 +52,18 @@ function SignInForm() {
     formEvent.preventDefault();
     setPending(true);
     setError(null);
-    const result =
-      mode === "sign-in"
-        ? await authClient.signIn.email({ email, password })
-        : await authClient.signUp.email({ email, password, name: email });
-    setPending(false);
-    if (result.error) {
-      setError(result.error.message ?? "Something went wrong");
+    try {
+      const result =
+        mode === "sign-in"
+          ? await authClient.signIn.email({ email, password })
+          : await authClient.signUp.email({ email, password, name: email });
+      if (result.error) {
+        setError(result.error.message ?? "Something went wrong");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not reach the server");
+    } finally {
+      setPending(false);
     }
   }
 
@@ -105,14 +110,20 @@ function RosterImport() {
   const profile = useQuery(api.users.me);
   const bootstrapProfile = useMutation(api.users.bootstrapProfile);
   const bootstrapped = useRef(false);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile === null && !bootstrapped.current) {
       bootstrapped.current = true;
-      void bootstrapProfile({ displayName: "School staff" });
+      bootstrapProfile({ displayName: "School staff" }).catch((caught: unknown) => {
+        setBootstrapError(caught instanceof Error ? caught.message : "Could not set up your account");
+      });
     }
   }, [profile, bootstrapProfile]);
 
+  if (bootstrapError) {
+    return <Centered>{bootstrapError}</Centered>;
+  }
   if (profile === undefined || profile === null) {
     return <Centered>Setting up your account…</Centered>;
   }
@@ -153,10 +164,10 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
         guesses.map((guess) => ({
           fullName: guess.fullName,
           className: guess.className,
-          guardianMsisdn: "",
-          guardianRelationship: "guardian",
-          tagUid: "",
-          openingBalanceKes: "0",
+          guardianMsisdn: guess.guardianMsisdn,
+          guardianRelationship: guess.guardianRelationship || BLANK_ROW.guardianRelationship,
+          tagUid: guess.tagUid,
+          openingBalanceKes: String(guess.openingBalanceKes),
         })),
       );
       setStep("confirm");
