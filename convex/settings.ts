@@ -21,6 +21,7 @@ export const SettingKey = {
   VarianceStreakDays: "varianceStreakDays",
   OverrideRateTolerancePct: "overrideRateTolerancePct",
   ClockSkewToleranceSeconds: "clockSkewToleranceSeconds",
+  SmsChannel: "smsChannel",
 } as const;
 
 export const DEMO_SETTINGS: ReadonlyArray<{
@@ -42,6 +43,7 @@ export const DEMO_SETTINGS: ReadonlyArray<{
   { key: SettingKey.VarianceStreakDays, value: 3, description: "Consecutive breach days before escalation" },
   { key: SettingKey.OverrideRateTolerancePct, value: 15, description: "Override rate above which a school is flagged" },
   { key: SettingKey.ClockSkewToleranceSeconds, value: 120, description: "Device clock skew tolerated before flagging" },
+  { key: SettingKey.SmsChannel, value: "console", description: "SMS channel adapter: console | africastalking" },
 ];
 
 export async function readSetting(

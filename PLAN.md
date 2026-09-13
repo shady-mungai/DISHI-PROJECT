@@ -203,7 +203,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D1 scaffold + schema + settings + Better Auth — typecheck clean, 10/10 tests, seed idempotent on live deployment
 - [x] D2 enrolment PDF import + confirm screen + ingestion — typecheck, lint, build, 22/22 tests green
 - [x] D3 expectations + missed-meal sweeper + manual triggers — typecheck, lint, build, 28/28 tests green
-- [ ] D4 rules table + predicate interpreter + first two rules
+- [x] D4 rules table + predicate interpreter + first two rules — typecheck, lint, 35/35 tests green, rules seeded on live deployment
 - [ ] D5 simulator + DLR + live count screen + demo rehearsal
 
 **Sprint 2**
@@ -317,3 +317,30 @@ _Appended as we go. Date, decision, why._
 - **2026-09-12 — D3: sign-in/profile gate extracted to `app/components/SchoolGate.tsx`.**
   The enrolment page still carries its inline copy because it has uncommitted parser WIP
   in the D2 worktree; swap it to `SchoolGate` when that lands.
+- **2026-09-13 — D4: every event insert goes through `recordEvent` (`convex/lib/events.ts`).**
+  It inserts the row and `runAfter(0, rules.evaluate, { eventId })` in the same transaction,
+  so ingest, the sweeper and any future producer get rule evaluation without remembering
+  to schedule it. Cost: one scheduled function per event, including ones no rule listens
+  to (`meal.expectation_created`); acceptable at demo scale, gate on a `rules.by_eventType`
+  probe if scheduling volume ever matters.
+- **2026-09-13 — D4: predicate DSL is a JSON string validated by `parsePredicate`.**
+  Convex validators cannot express a recursive type, so the rule row stores the predicate
+  as `v.string()` and `convex/lib/predicate.ts` (pure, no framework imports) parses and
+  shape-checks it before evaluation — a malformed rule evaluates to "no match", never to
+  a thrown error inside the ingest path. Ops: `always`, `eq/ne/gt/gte/lt/lte` over flat
+  payload fields, `and/or/not`. Fields resolve against `events.payload` only.
+- **2026-09-13 — D4: notification idempotency by `dedupeKey` = `rule:eventId:guardian`.**
+  Same pattern as `events.eventId`: re-running `rules.evaluate` for an event (dry-run,
+  replay, scheduler retry) creates nothing. The policy pipeline (opt-out, quiet hours,
+  collapse, cap) is deliberately absent — D6 slots in between "rule matched" and
+  "notification inserted" in `notifyGuardians`.
+- **2026-09-13 — D4: SMS channel is an adapter chosen by the `smsChannel` setting.**
+  `convex/lib/channels/` holds `SmsChannel` (`send(message) → sent | failed`), a console
+  implementation (logs masked MSISDN + length only — no message body, per no-PII logging)
+  and Africa's Talking via `fetch` (no `"use node"`), env `AT_USERNAME` / `AT_API_KEY` /
+  optional `AT_SENDER_ID`; username `sandbox` routes to the sandbox host. The `deliver`
+  action is the single exit point; it reads the notification, sends, and records
+  `sent`/`failed` + provider id. DLR webhook is D5.
+- **2026-09-13 — D4: `/service-day` takes a date picker.** Materialisation is gated on the
+  calendar, and the demo was built on a Sunday; picking any seeded weekday is the honest
+  fix — the seed still marks weekends as holidays (P-02) rather than faking school days.

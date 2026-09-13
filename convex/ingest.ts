@@ -4,6 +4,7 @@ import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { fulfilExpectation } from "./expectations";
 import { toServiceDate } from "./lib/dates";
+import { recordEvent } from "./lib/events";
 import { readSetting, SettingKey } from "./settings";
 
 const SCHEMA_VERSION = 1;
@@ -147,7 +148,7 @@ async function recordTap(
     .first();
 
   if (sameDayTap) {
-    await ctx.db.insert("events", {
+    await recordEvent(ctx, {
       eventId: event.eventId,
       type: "meal.duplicate_rejected",
       occurredAt: event.occurredAt,
@@ -163,7 +164,7 @@ async function recordTap(
     return { eventId: event.eventId, status: "duplicate", reason: "second_tap_same_day" };
   }
 
-  await ctx.db.insert("events", {
+  await recordEvent(ctx, {
     eventId: event.eventId,
     type: "meal.tapped",
     occurredAt: event.occurredAt,

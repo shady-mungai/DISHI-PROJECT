@@ -21,6 +21,16 @@ export const eventPayload = v.record(
   v.union(v.string(), v.number(), v.boolean()),
 );
 
+export const notificationStatus = v.union(
+  v.literal("queued"),
+  v.literal("sent"),
+  v.literal("failed"),
+);
+
+export const notificationChannel = v.literal("sms");
+
+export const ruleAudience = v.literal("guardian");
+
 export default defineSchema({
   users: defineTable({
     authUserId: v.string(),
@@ -133,6 +143,38 @@ export default defineSchema({
     studentId: v.id("students"),
     balanceKes: v.number(),
   }).index("by_student", ["studentId"]),
+
+  rules: defineTable({
+    key: v.string(),
+    eventType: v.string(),
+    predicate: v.string(),
+    audience: ruleAudience,
+    template: v.string(),
+    channel: notificationChannel,
+    priority: v.number(),
+    enabled: v.boolean(),
+  })
+    .index("by_key", ["key"])
+    .index("by_eventType", ["eventType"]),
+
+  notifications: defineTable({
+    dedupeKey: v.string(),
+    ruleKey: v.string(),
+    eventId: v.id("events"),
+    correlationId: v.string(),
+    schoolId: v.optional(v.id("schools")),
+    guardianId: v.id("guardians"),
+    msisdn: v.string(),
+    channel: notificationChannel,
+    body: v.string(),
+    status: notificationStatus,
+    providerMessageId: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_dedupeKey", ["dedupeKey"])
+    .index("by_correlationId", ["correlationId"])
+    .index("by_school", ["schoolId"]),
 
   settings: defineTable({
     key: v.string(),

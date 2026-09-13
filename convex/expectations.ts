@@ -5,6 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { requireSchoolScope } from "./lib/authz";
 import { toServiceDate } from "./lib/dates";
+import { recordEvent } from "./lib/events";
 import { readSetting, SettingKey } from "./settings";
 
 const SCHEMA_VERSION = 1;
@@ -134,7 +135,7 @@ async function materialiseStudent(
   });
 
   const now = Date.now();
-  await ctx.db.insert("events", {
+  await recordEvent(ctx, {
     eventId: `meal.expectation_created:${expectationId}`,
     type: "meal.expectation_created",
     occurredAt: now,
@@ -196,7 +197,7 @@ async function sweepPage(
   const now = Date.now();
   for (const expectation of pending) {
     await ctx.db.patch(expectation._id, { status: "missed" });
-    await ctx.db.insert("events", {
+    await recordEvent(ctx, {
       eventId: `meal.missed:${expectation._id}`,
       type: "meal.missed",
       occurredAt: now,

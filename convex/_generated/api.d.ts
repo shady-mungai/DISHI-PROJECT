@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as channels from "../channels.js";
 import type * as crons from "../crons.js";
 import type * as devices from "../devices.js";
 import type * as enrolment from "../enrolment.js";
@@ -17,10 +18,20 @@ import type * as expectations from "../expectations.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as lib_authz from "../lib/authz.js";
+import type * as lib_channels_africasTalking from "../lib/channels/africasTalking.js";
+import type * as lib_channels_console from "../lib/channels/console.js";
+import type * as lib_channels_index from "../lib/channels/index.js";
+import type * as lib_channels_types from "../lib/channels/types.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_enrolmentParser from "../lib/enrolmentParser.js";
+import type * as lib_events from "../lib/events.js";
 import type * as lib_hmac from "../lib/hmac.js";
+import type * as lib_mask from "../lib/mask.js";
+import type * as lib_predicate from "../lib/predicate.js";
 import type * as lib_roles from "../lib/roles.js";
+import type * as lib_template from "../lib/template.js";
+import type * as notifications from "../notifications.js";
+import type * as rules from "../rules.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as users from "../users.js";
@@ -33,6 +44,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  channels: typeof channels;
   crons: typeof crons;
   devices: typeof devices;
   enrolment: typeof enrolment;
@@ -41,10 +53,20 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   ingest: typeof ingest;
   "lib/authz": typeof lib_authz;
+  "lib/channels/africasTalking": typeof lib_channels_africasTalking;
+  "lib/channels/console": typeof lib_channels_console;
+  "lib/channels/index": typeof lib_channels_index;
+  "lib/channels/types": typeof lib_channels_types;
   "lib/dates": typeof lib_dates;
   "lib/enrolmentParser": typeof lib_enrolmentParser;
+  "lib/events": typeof lib_events;
   "lib/hmac": typeof lib_hmac;
+  "lib/mask": typeof lib_mask;
+  "lib/predicate": typeof lib_predicate;
   "lib/roles": typeof lib_roles;
+  "lib/template": typeof lib_template;
+  notifications: typeof notifications;
+  rules: typeof rules;
   seed: typeof seed;
   settings: typeof settings;
   users: typeof users;

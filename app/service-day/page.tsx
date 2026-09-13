@@ -9,6 +9,7 @@ import { useState } from "react";
 
 const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
 const DATE_CLASS = "rounded border border-zinc-300 px-2 py-1 text-base font-normal";
+const NOTIFICATION_CLASS = "flex gap-3 rounded border border-zinc-200 px-3 py-2";
 const STAT_CLASS = "flex flex-col rounded border border-zinc-200 p-4";
 
 export default function ServiceDayPage() {
@@ -21,6 +22,7 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   const [message, setMessage] = useState<string | null>(null);
 
   const summary = useQuery(api.expectations.daySummary, { schoolId, serviceDate });
+  const notifications = useQuery(api.notifications.recentForSchool, { schoolId });
   const runExpectations = useMutation(api.expectations.runExpectationsNow);
   const runSweep = useMutation(api.expectations.runSweepNow);
 
@@ -69,6 +71,19 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         </button>
       </div>
       {message && <p className="text-sm text-zinc-600">{message}</p>}
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold">Recent notifications</h2>
+        {notifications?.length === 0 && <p className="text-sm text-zinc-500">None yet.</p>}
+        <ul className="flex flex-col gap-1 text-sm">
+          {notifications?.map((notification) => (
+            <li key={notification._id} className={NOTIFICATION_CLASS}>
+              <span className="font-mono text-zinc-500">{notification.maskedMsisdn}</span>
+              <span className="flex-1">{notification.body}</span>
+              <span className="text-zinc-500">{notification.failureReason ?? notification.status}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

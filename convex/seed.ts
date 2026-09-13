@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { addDays, isWeekend } from "./lib/dates";
+import { seedRules } from "./rules";
 import { DEMO_SETTINGS } from "./settings";
 
 export const PILOT_SCHOOL_CODE = "NRB-PILOT-01";
@@ -16,6 +17,7 @@ export const seedDemo = internalMutation({
     settingsCreated: v.number(),
     schoolCreated: v.boolean(),
     calendarDaysCreated: v.number(),
+    rulesCreated: v.number(),
   }),
   handler: async (ctx, args) => {
     let settingsCreated = 0;
@@ -67,6 +69,7 @@ export const seedDemo = internalMutation({
       settingsCreated,
       schoolCreated: !existingSchool,
       calendarDaysCreated,
+      rulesCreated: await seedRules(ctx),
     };
   },
 });
