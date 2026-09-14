@@ -372,3 +372,22 @@ _Appended as we go. Date, decision, why._
 - **2026-09-13 — CLI rehearsal as a signed-in user:** `npx convex run <fn> --identity
   '{"subject":"<authUserId>","sessionId":"<betterAuth session _id>"}'` — the Better Auth
   component resolves the user through the session, so `subject` alone is not enough.
+- **2026-09-14 — PWA phone reader at `/reader`.** A read-only NFC tag is only a UID; the
+  phone is the reader. Chrome-on-Android Web NFC (`NDEFReader.serialNumber`) → signed
+  batch to the existing `/ingest`, no server contract change. The phone provisions
+  itself (`readers.provision`, school-scoped, secret minted server-side like the
+  simulator) and keeps `{deviceRef, signingKeyHex}` plus an offline tap queue in
+  `localStorage`; `eventId = deviceRef:tagUid:occurredAt` so a flush after airplane
+  mode is replay-safe. **Tag UID canonical form is `normaliseTagUid` (trim +
+  lowercase)** applied at ingest lookup, enrolment insert and `readers.assignTag` —
+  Web NFC reports lowercase colon-hex, PDFs may not. Reassigning a UID deletes the
+  previous holder's row (the `by_tagUid` lookup is `.unique()`); the events table is
+  the audit trail. No service worker: the page needs network to load and the queue
+  covers mid-service dropouts. Dev on a LAN IP is not a secure context — the Chrome
+  flag `unsafely-treat-insecure-origin-as-secure` for `http://<laptop-ip>:3000` is the
+  workaround, a `cloudflared` tunnel the fallback. Web NFC is Chrome/Android only;
+  the page falls back to a typed UID field for USB readers.
+- **2026-09-14 — `tests/expectations.test.ts` was a time bomb.** It hardcoded
+  `SCHOOL_DAY = 2026-09-14`; `startServiceDay` schedules the sweep with `runAt(cutoffAt)`
+  and convex-test fires past-due schedules immediately, so from ~09:37Z that day the
+  sweep ran before the tap under test. School day is now `today + 7`.

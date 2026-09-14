@@ -3,6 +3,7 @@ import { internalQuery, mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireRole, requireSchoolScope } from "./lib/authz";
+import { normaliseTagUid } from "./lib/tagUid";
 
 const IMPORT_ROLES = ["school", "admin"] as const;
 const SCHEMA_VERSION = 1;
@@ -87,7 +88,7 @@ export async function commitRosterRows(
 
     if (row.tagUid) {
       await ctx.db.insert("tags", {
-        tagUid: row.tagUid,
+        tagUid: normaliseTagUid(row.tagUid),
         studentId,
         status: "active",
         issuedAt: importedAt,

@@ -5,6 +5,7 @@ import type { MutationCtx } from "./_generated/server";
 import { fulfilExpectation } from "./expectations";
 import { toServiceDate } from "./lib/dates";
 import { recordEvent } from "./lib/events";
+import { normaliseTagUid } from "./lib/tagUid";
 import { readSetting, SettingKey } from "./settings";
 
 const SCHEMA_VERSION = 1;
@@ -120,9 +121,10 @@ async function recordTap(
     return { eventId: event.eventId, status: "duplicate", reason: "replayed_event_id" };
   }
 
+  const tagUid = normaliseTagUid(event.tagUid);
   const tag = await ctx.db
     .query("tags")
-    .withIndex("by_tagUid", (q) => q.eq("tagUid", event.tagUid))
+    .withIndex("by_tagUid", (q) => q.eq("tagUid", tagUid))
     .unique();
   if (!tag || tag.status !== "active") {
     return { eventId: event.eventId, status: "rejected", reason: tag ? "tag_revoked" : "unknown_tag" };
@@ -173,7 +175,7 @@ async function recordTap(
     correlationId,
     payload: {
       student_id: student._id,
-      tag_uid: event.tagUid,
+      tag_uid: tagUid,
       tapped_at: event.occurredAt,
       device_id: device.deviceRef,
       clock_skew_flagged: clockSkewFlagged,

@@ -8,7 +8,7 @@ const modules = import.meta.glob("../convex/**/*.ts");
 
 const DEVICE_REF = "READER-01";
 const DEVICE_SECRET = "demo-device-secret";
-const TAG_UID = "TAG-001";
+const TAG_UID = "tag-001";
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 type IngestTapInput = { eventId: string; tagUid: string; occurredAt: number; correlationId?: string };

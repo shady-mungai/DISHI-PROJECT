@@ -2,17 +2,22 @@ import { convexTest } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
 import { internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { addDays, toServiceDate } from "../convex/lib/dates";
 import schema from "../convex/schema";
 
 const modules = import.meta.glob("../convex/**/*.ts");
 
-const SCHOOL_DAY = "2026-09-14";
-const HOLIDAY = "2026-09-13";
+// Always next week: startSchoolDay schedules the sweep at cutoffAt, and
+// convex-test fires any past-due schedule immediately, which would mark
+// every expectation missed before the tap under test arrives.
+const DAYS_AHEAD = 7;
+const SCHOOL_DAY = addDays(toServiceDate(Date.now()), DAYS_AHEAD);
+const HOLIDAY = addDays(SCHOOL_DAY, -1);
 const SERVICE_START_AT = Date.parse(`${SCHOOL_DAY}T09:30:00.000Z`);
 const ACTIVE_STUDENTS = 5;
 const DEVICE_REF = "READER-01";
 const DEVICE_SECRET = "demo-device-secret";
-const TAG_UID = "TAG-001";
+const TAG_UID = "tag-001";
 
 type Harness = ReturnType<typeof convexTest>;
 
