@@ -1,0 +1,90 @@
+import { v } from "convex/values";
+import { internalMutation } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
+import { settingValue } from "./schema";
+import type { Infer } from "convex/values";
+
+export type SettingValue = Infer<typeof settingValue>;
+
+export const SettingKey = {
+  ServiceWindowMinutes: "serviceWindowMinutes",
+  CutoffOffsetMinutes: "cutoffOffsetMinutes",
+  MealPriceKes: "mealPriceKes",
+  LowBalanceThresholdKes: "lowBalanceThresholdKes",
+  LowBalanceReArmMarginKes: "lowBalanceReArmMarginKes",
+  DailyMessageCap: "dailyMessageCap",
+  CollapseWindowMinutes: "collapseWindowMinutes",
+  QuietHoursStartHour: "quietHoursStartHour",
+  QuietHoursEndHour: "quietHoursEndHour",
+  StalledServiceThresholdPct: "stalledServiceThresholdPct",
+  VarianceTolerancePct: "varianceTolerancePct",
+  VarianceStreakDays: "varianceStreakDays",
+  OverrideRateTolerancePct: "overrideRateTolerancePct",
+  ClockSkewToleranceSeconds: "clockSkewToleranceSeconds",
+  SmsChannel: "smsChannel",
+} as const;
+
+export const DEMO_SETTINGS: ReadonlyArray<{
+  key: string;
+  value: SettingValue;
+  description: string;
+}> = [
+  { key: SettingKey.ServiceWindowMinutes, value: 5, description: "Length of the compressed demo service window" },
+  { key: SettingKey.CutoffOffsetMinutes, value: 2, description: "Minutes after window close before the missed-meal sweep" },
+  { key: SettingKey.MealPriceKes, value: 5, description: "Subsidised guardian contribution per meal" },
+  { key: SettingKey.LowBalanceThresholdKes, value: 50, description: "Balance at which a low-balance warning is raised" },
+  { key: SettingKey.LowBalanceReArmMarginKes, value: 20, description: "Recovery margin above threshold before re-arming" },
+  { key: SettingKey.DailyMessageCap, value: 3, description: "Maximum messages per guardian per day" },
+  { key: SettingKey.CollapseWindowMinutes, value: 10, description: "Window across which messages are merged" },
+  { key: SettingKey.QuietHoursStartHour, value: 21, description: "Hour at which quiet hours begin" },
+  { key: SettingKey.QuietHoursEndHour, value: 6, description: "Hour at which quiet hours end" },
+  { key: SettingKey.StalledServiceThresholdPct, value: 30, description: "Shortfall against expected run rate that flags stalled service" },
+  { key: SettingKey.VarianceTolerancePct, value: 10, description: "Reconciliation variance considered actionable" },
+  { key: SettingKey.VarianceStreakDays, value: 3, description: "Consecutive breach days before escalation" },
+  { key: SettingKey.OverrideRateTolerancePct, value: 15, description: "Override rate above which a school is flagged" },
+  { key: SettingKey.ClockSkewToleranceSeconds, value: 120, description: "Device clock skew tolerated before flagging" },
+  { key: SettingKey.SmsChannel, value: "console", description: "SMS channel adapter: console | celcom | africastalking" },
+];
+
+export async function readSetting(
+  ctx: QueryCtx,
+  key: string,
+): Promise<SettingValue | undefined> {
+  const row = await ctx.db
+    .query("settings")
+    .withIndex("by_key", (q) => q.eq("key", key))
+    .unique();
+  return row?.value;
+}
+
+export const seedDefaults = internalMutation({
+  args: { overwrite: v.optional(v.boolean()) },
+  returns: v.object({ created: v.number(), updated: v.number() }),
+  handler: async (ctx, args) => {
+    let created = 0;
+    let updated = 0;
+
+    for (const setting of DEMO_SETTINGS) {
+      const existing = await ctx.db
+        .query("settings")
+        .withIndex("by_key", (q) => q.eq("key", setting.key))
+        .unique();
+
+      if (!existing) {
+        await ctx.db.insert("settings", setting);
+        created += 1;
+        continue;
+      }
+
+      if (args.overwrite === true) {
+        await ctx.db.patch(existing._id, {
+          value: setting.value,
+          description: setting.description,
+        });
+        updated += 1;
+      }
+    }
+
+    return { created, updated };
+  },
+});

@@ -175,7 +175,7 @@ and a wallet oscillating at the threshold emits exactly one warning.
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | **Guardian phone numbers not available with the name list** | High | Blocks the entire demo | The list is only half the input. Chase numbers, tags and opening balances **before D2**. Demo runs on real handsets in the room. |
-| **Data residency under DPA 2019** — Convex Cloud is US-hosted; children's PII crosses a border | High | Programme-level | **Accepted, tracked.** Demo and build run on the 30-child list with consenting adults' handsets, not live programme data. Before any real guardian data: confirm Convex region options or the self-hosted path, and document the transfer basis for ODPC. Decision point end of Week 2. |
+| **Data residency under DPA 2019** — children's PII leaves Kenya | Medium | Programme-level | **Downgraded on D1: the deployment provisioned to `eu-west-1`, not the US.** EU hosting puts this in adequacy-safeguard territory rather than a bare cross-border transfer, which is a materially easier ODPC conversation. Still not in-country. Demo runs on consenting adults' handsets, not live programme data. Confirm the transfer basis and whether EU is acceptable to the county before real guardian data. Decision point end of Week 2. |
 | **USSD short code provisioning lead time** (weeks in KE) | High | Blocks P-07 demo | Apply **Day 1**, before any code. Build against the AT sandbox short code meanwhile. |
 | **ODPC registration** before live guardian data (NFR-506) | High | Blocks pilot, not build | Start Day 1. Paperwork, not engineering. |
 | **PDF has no usable text layer** after all | Medium | Half a day | Parser sits behind an interface. Fallback for 30 names is transcribing once — cheaper than building OCR. Verify the actual file on D1. |
@@ -200,11 +200,11 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 ### Progress board
 
 **Sprint 1**
-- [ ] D1 scaffold + schema + settings + Convex Auth
-- [ ] D2 enrolment PDF import + confirm screen + ingestion
-- [ ] D3 expectations + missed-meal sweeper + manual triggers
-- [ ] D4 rules table + predicate interpreter + first two rules
-- [ ] D5 simulator + DLR + live count screen + demo rehearsal
+- [x] D1 scaffold + schema + settings + Better Auth — typecheck clean, 10/10 tests, seed idempotent on live deployment
+- [x] D2 enrolment PDF import + confirm screen + ingestion — typecheck, lint, build, 22/22 tests green
+- [x] D3 expectations + missed-meal sweeper + manual triggers — typecheck, lint, build, 28/28 tests green
+- [x] D4 rules table + predicate interpreter + first two rules — typecheck, lint, 35/35 tests green, rules seeded on live deployment
+- [x] D5 simulator + DLR + live count screen + demo rehearsal — typecheck, lint, build, 44/44 tests green; rehearsed on live deployment: 32 expectations → 29 taps via /ingest (940 ms) → replay 29 duplicates → sweep 3 missed → 32 SMS via console channel → DLR flips to delivered
 
 **Sprint 2**
 - [ ] D6 policy layer + templates + cost instrumentation
@@ -246,3 +246,157 @@ _Appended as we go. Date, decision, why._
   parser sits behind an interface with hand-transcription as the fallback. Upload is part of the
   demo narrative, so the screen and parse must visibly work. All timings become settings with
   manual triggers — needed for testing absence triggers regardless of the demo.
+
+- **2026-09-09 — Better Auth, not Convex Auth.** Reversal of the decision above, made on
+  D1 after checking current docs. Convex's own documentation marks Convex Auth beta —
+  "isn't complete and may change in backward-incompatible ways" — with Next.js support
+  under active development. The official `@convex-dev/better-auth` component keeps auth
+  data inside the Convex deployment via its adapter, which is the residency property
+  Convex Auth was chosen for, without the beta risk, and ships a complete Next.js App
+  Router guide. Clerk remains ruled out on residency. Versions pinned: convex 1.45.0,
+  @convex-dev/better-auth 0.12.5, better-auth 1.6.30.
+- **2026-09-09 — Event payload typing.** `events.payload` is a flat scalar record
+  (`string | number | boolean`), not `any` — every payload in the catalogue is flat
+  scalars, so this is truthful rather than permissive, keeps CLAUDE.md's no-`any` rule,
+  and tolerates additive change per NFR-804. Per-event-type validators get added as each
+  type is implemented, starting D2.
+- **2026-09-09 — Role logic split from Convex.** Pure predicates live in
+  `convex/lib/roles.ts` with zero framework imports; ctx-bound guards in
+  `convex/lib/authz.ts`. FR-801 and NFR-404 are therefore testable without the harness,
+  and the seven role/scope tests run in ~1s with no deployment.
+- **2026-09-09 — Deployment region is `eu-west-1`.** Convex provisioned the dev deployment
+  to EU West, not US East as assumed when the residency risk was written. Risk downgraded
+  from High to Medium and the row rewritten. Verify the same region applies to the
+  production deployment before the pilot.
+- **2026-09-09 — Tests live in `tests/`, not `convex/`.** The Convex CLI typechecks
+  everything under `convex/` against `convex/tsconfig.json`, which has no Vite types, so
+  `import.meta.glob` in a colocated test breaks `convex dev`. Tests are not Convex
+  functions and do not belong in the deployed directory.
+- **2026-09-09 — D2: `pdf-parse@1.1.1`, not the current `2.x`.** `2.x` is a pdf.js
+  rewrite that drags in `@napi-rs/canvas` for its rendering path; Convex's Node-action
+  bundler fails analysing it (`DOMMatrix is not defined`) even though only text
+  extraction is used. `1.1.1` has no canvas dependency. Its own `index.js` also runs a
+  self-test against a bundled sample PDF whenever `module.parent` is falsy — true under
+  Convex's bundler — so the action imports `pdf-parse/lib/pdf-parse.js` directly,
+  skipping that entry point. No published types; a 4-line local `.d.ts` covers the one
+  call made.
+- **2026-09-09 — D2: `events` gets `studentId` + `serviceDate`, and a new `wallets`
+  table.** FR-204/ST-04 need "does this student already have a `meal.tapped` today"
+  answered cheaply; denormalising those two fields onto `events` (same pattern as the
+  existing `schoolId`/`sourceDeviceRef`) and indexing `by_student_serviceDate_type`
+  answers it in one indexed lookup instead of a new table. `wallets` (`studentId`,
+  `balanceKes`) exists only to hold the opening balance D2's import captures — D8 owns
+  the real adapter/hysteresis shape and extends this table rather than replacing it.
+- **2026-09-09 — D2: self-serve signup always becomes a "school" user on the one seeded
+  pilot school.** No invite or admin-assignment flow exists yet, and building one is out
+  of scope for a single-school pilot. `convex/users.ts#bootstrapProfile` is marked
+  `ponytail:` at the definition; replace it with real role assignment before D9 needs a
+  county or supplier login.
+- **2026-09-09 — D2 auth UI was unscoped work, built anyway.** D1 wired Better Auth's
+  backend (component, config, role/scope guards) but no frontend ever called it — no
+  ConvexProvider, no sign-in page existed. D2 needed an authenticated caller for
+  `requireRole`, so this slice also adds `ConvexBetterAuthProvider` wiring, the
+  `/api/auth/[...all]` route, and a plain email/password sign-in form.
+- **2026-09-12 — D3: the sweep is scheduler-driven, not a cron.** `startSchoolDay`
+  resolves the window from `serviceWindowMinutes` + `cutoffOffsetMinutes` and calls
+  `ctx.scheduler.runAt(cutoffAt, sweepMissed)` in the same transaction that writes the
+  first page of expectations — so the cutoff moves with the settings and there is no
+  polling cron guessing when "cutoff" is. The only cron (`convex/crons.ts`) fires
+  materialisation at 09:30 UTC (12:30 Nairobi, the real window start); the demo path is
+  the same code behind "Run expectations now" at `/service-day`.
+- **2026-09-12 — D3: materialisation pages with `.paginate()` + cursor, the sweep with
+  `.take()` and no cursor.** Students don't change while being paged, so a cursor is
+  needed; swept rows flip out of the `pending` index range, so re-taking the head is the
+  next batch. Both chain via `runAfter(0, …)`. A tap that lands before materialisation
+  still counts: `materialiseStudent` checks `by_student_serviceDate_type` for a
+  `meal.tapped` and creates the row already `fulfilled`. A tap after the sweep leaves the
+  row `missed` — the guardian has already been told.
+- **2026-09-12 — D3: no calendar row = not a school day.** Materialisation only runs
+  when `academicCalendar` says `isSchoolDay`; a missing row is treated as a holiday and
+  reported as `not_school_day` rather than guessed. Seed the calendar before the demo.
+- **2026-09-12 — D3: sign-in/profile gate extracted to `app/components/SchoolGate.tsx`.**
+  The enrolment page still carries its inline copy because it has uncommitted parser WIP
+  in the D2 worktree; swap it to `SchoolGate` when that lands.
+- **2026-09-13 — D4: every event insert goes through `recordEvent` (`convex/lib/events.ts`).**
+  It inserts the row and `runAfter(0, rules.evaluate, { eventId })` in the same transaction,
+  so ingest, the sweeper and any future producer get rule evaluation without remembering
+  to schedule it. Cost: one scheduled function per event, including ones no rule listens
+  to (`meal.expectation_created`); acceptable at demo scale, gate on a `rules.by_eventType`
+  probe if scheduling volume ever matters.
+- **2026-09-13 — D4: predicate DSL is a JSON string validated by `parsePredicate`.**
+  Convex validators cannot express a recursive type, so the rule row stores the predicate
+  as `v.string()` and `convex/lib/predicate.ts` (pure, no framework imports) parses and
+  shape-checks it before evaluation — a malformed rule evaluates to "no match", never to
+  a thrown error inside the ingest path. Ops: `always`, `eq/ne/gt/gte/lt/lte` over flat
+  payload fields, `and/or/not`. Fields resolve against `events.payload` only.
+- **2026-09-13 — D4: notification idempotency by `dedupeKey` = `rule:eventId:guardian`.**
+  Same pattern as `events.eventId`: re-running `rules.evaluate` for an event (dry-run,
+  replay, scheduler retry) creates nothing. The policy pipeline (opt-out, quiet hours,
+  collapse, cap) is deliberately absent — D6 slots in between "rule matched" and
+  "notification inserted" in `notifyGuardians`.
+- **2026-09-13 — D4: SMS channel is an adapter chosen by the `smsChannel` setting.**
+  `convex/lib/channels/` holds `SmsChannel` (`send(message) → sent | failed`), a console
+  implementation (logs masked MSISDN + length only — no message body, per no-PII logging)
+  and Africa's Talking via `fetch` (no `"use node"`), env `AT_USERNAME` / `AT_API_KEY` /
+  optional `AT_SENDER_ID`; username `sandbox` routes to the sandbox host. The `deliver`
+  action is the single exit point; it reads the notification, sends, and records
+  `sent`/`failed` + provider id. DLR webhook is D5.
+- **2026-09-13 — D4: `/service-day` takes a date picker.** Materialisation is gated on the
+  calendar, and the demo was built on a Sunday; picking any seeded weekday is the honest
+  fix — the seed still marks weekends as holidays (P-02) rather than faking school days.
+- **2026-09-13 — D4: Celcom Africa is the SMS provider; Africa's Talking stays as a second
+  adapter.** Ported from an existing OTP service: JSON POST to `CELCOM_URL` with
+  `apikey`, `partnerID`, `shortcode`, optional `pass_type`, `mobile`, `message`; success
+  is HTTP 200 and (when present) `responses[0]["respose-code"] === 200` — the gateway's
+  own misspelling, so both spellings are read. Set the `smsChannel` setting to `celcom`
+  after `npx convex env set CELCOM_URL/CELCOM_API_KEY/CELCOM_PARTNER_ID/CELCOM_SHORTCODE`.
+- **2026-09-13 — D5: the simulator is a Convex action that posts to its own `/ingest`.**
+  `simulator.runServiceDay` provisions one `SIM-READER-01:<school>` device per school (secret
+  derived server-side, never typed), plans the day with `lib/simulation.ts` (pure, mulberry32
+  PRNG, event ids `sim:<seed>:<date>:<tag>`), and HMAC-signs each batch exactly as hardware
+  would — so the demo exercises the real trust boundary and replaying a seed is idempotent
+  (NFR-805, NFR-204). Scenarios are two numbers: `noShowCount` (absence cohort) and
+  `batchSize` (1 = live reader, roster-sized = offline reader flushing). Taps for a day
+  other than today are stamped inside that day's real window so ingest files them under
+  the picked date; they arrive clock-skew flagged, which is truthful.
+- **2026-09-13 — D5: DLR is `POST /dlr?token=<DLR_TOKEN>`.** Gateways don't sign callbacks;
+  a shared token in the URL is the gate. `lib/deliveryReport.ts` accepts JSON or form bodies
+  and several id/status spellings because the Celcom DLR field names are unconfirmed
+  (TODO in that file). A report for an unknown provider id is a 200 `matched:false`, not an
+  error. Matched reports flip the notification to `delivered`/`failed` and append
+  `notification.delivered`/`notification.failed` events through `recordEvent`.
+- **2026-09-13 — D5: the live count screen is `/service-day`, not a new page.** It already
+  had the reactive summary; it now leads with `served / expected`, carries the simulator
+  controls, and lists recent notifications. Demo order on that page: pick a seeded weekday
+  → Run expectations → Simulate taps → Run sweep. D11 grows this into the school dashboard.
+- **2026-09-13 — CLI rehearsal as a signed-in user:** `npx convex run <fn> --identity
+  '{"subject":"<authUserId>","sessionId":"<betterAuth session _id>"}'` — the Better Auth
+  component resolves the user through the session, so `subject` alone is not enough.
+- **2026-09-14 — PWA phone reader at `/reader`.** A read-only NFC tag is only a UID; the
+  phone is the reader. Chrome-on-Android Web NFC (`NDEFReader.serialNumber`) → signed
+  batch to the existing `/ingest`, no server contract change. The phone provisions
+  itself (`readers.provision`, school-scoped, secret minted server-side like the
+  simulator) and keeps `{deviceRef, signingKeyHex}` plus an offline tap queue in
+  `localStorage`; `eventId = deviceRef:tagUid:occurredAt` so a flush after airplane
+  mode is replay-safe. **Tag UID canonical form is `normaliseTagUid` (trim +
+  lowercase)** applied at ingest lookup, enrolment insert and `readers.assignTag` —
+  Web NFC reports lowercase colon-hex, PDFs may not. Reassigning a UID deletes the
+  previous holder's row (the `by_tagUid` lookup is `.unique()`); the events table is
+  the audit trail. No service worker: the page needs network to load and the queue
+  covers mid-service dropouts. Dev on a LAN IP is not a secure context — the Chrome
+  flag `unsafely-treat-insecure-origin-as-secure` for `http://<laptop-ip>:3000` is the
+  workaround, a `cloudflared` tunnel the fallback. Web NFC is Chrome/Android only;
+  the page falls back to a typed UID field for USB readers.
+- **2026-09-14 — `tests/expectations.test.ts` was a time bomb.** It hardcoded
+  `SCHOOL_DAY = 2026-09-14`; `startServiceDay` schedules the sweep with `runAt(cutoffAt)`
+  and convex-test fires past-due schedules immediately, so from ~09:37Z that day the
+  sweep ran before the tap under test. School day is now `today + 7`.
+- **2026-09-14 — Three things a browser reader needs that the simulator never did.**
+  (1) Next dev blocks its own assets for any origin but `localhost` — `allowedDevOrigins`
+  in `next.config.ts` lists private LAN ranges, otherwise the page never hydrates and the
+  auth gate spins forever. (2) Better Auth rejects sign-in from origins other than
+  `SITE_URL` — `TRUSTED_ORIGINS` (comma-separated env) is spread into `trustedOrigins`;
+  set it to the laptop's LAN origin whenever the Wi-Fi changes. (3) `/ingest` is called
+  cross-origin with custom headers, so it needs an `OPTIONS` route and CORS headers on
+  every response; `Allow-Origin: *` is fine because the endpoint is HMAC-authenticated
+  and cookie-free. Verified live: 13 phone taps → 1 accepted, 12 `second_tap_same_day`.
