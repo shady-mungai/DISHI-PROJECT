@@ -42,3 +42,5 @@ next-env.d.ts
 
 # local backups
 *.bak
+
+roster_seed_data.pdf
