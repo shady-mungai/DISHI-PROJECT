@@ -7,9 +7,17 @@ import authConfig from "./auth.config";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
+// Better Auth only trusts SITE_URL's origin; a phone on the LAN hits the app
+// by IP, so extra origins come from a comma-separated env var.
+const trustedOrigins = (process.env.TRUSTED_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 export const createAuth = (ctx: GenericCtx<DataModel>) =>
   betterAuth({
     baseURL: process.env.SITE_URL,
+    trustedOrigins,
     database: authComponent.adapter(ctx),
     emailAndPassword: {
       enabled: true,

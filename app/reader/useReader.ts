@@ -118,6 +118,7 @@ export function useTapQueue(device: ReaderDevice | null) {
   );
 
   useEffect(() => {
+    void flush();
     window.addEventListener("online", flush);
     return () => window.removeEventListener("online", flush);
   }, [flush]);

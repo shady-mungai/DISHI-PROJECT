@@ -391,3 +391,12 @@ _Appended as we go. Date, decision, why._
   `SCHOOL_DAY = 2026-09-14`; `startServiceDay` schedules the sweep with `runAt(cutoffAt)`
   and convex-test fires past-due schedules immediately, so from ~09:37Z that day the
   sweep ran before the tap under test. School day is now `today + 7`.
+- **2026-09-14 — Three things a browser reader needs that the simulator never did.**
+  (1) Next dev blocks its own assets for any origin but `localhost` — `allowedDevOrigins`
+  in `next.config.ts` lists private LAN ranges, otherwise the page never hydrates and the
+  auth gate spins forever. (2) Better Auth rejects sign-in from origins other than
+  `SITE_URL` — `TRUSTED_ORIGINS` (comma-separated env) is spread into `trustedOrigins`;
+  set it to the laptop's LAN origin whenever the Wi-Fi changes. (3) `/ingest` is called
+  cross-origin with custom headers, so it needs an `OPTIONS` route and CORS headers on
+  every response; `Allow-Origin: *` is fine because the endpoint is HMAC-authenticated
+  and cookie-free. Verified live: 13 phone taps → 1 accepted, 12 `second_tap_same_day`.

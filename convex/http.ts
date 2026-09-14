@@ -10,6 +10,25 @@ const http = httpRouter();
 
 authComponent.registerRoutes(http, createAuth);
 
+// Browser readers (the PWA) call /ingest cross-origin. The endpoint is
+// HMAC-authenticated and cookie-free, so any origin may attempt it.
+const INGEST_CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Device-Ref, X-Signature",
+  "Access-Control-Max-Age": "86400",
+};
+
+function ingestJson(body: unknown, status: number): Response {
+  return Response.json(body, { status, headers: INGEST_CORS_HEADERS });
+}
+
+http.route({
+  path: "/ingest",
+  method: "OPTIONS",
+  handler: httpAction(async () => new Response(null, { status: 204, headers: INGEST_CORS_HEADERS })),
+});
+
 http.route({
   path: "/ingest",
   method: "POST",
@@ -17,34 +36,34 @@ http.route({
     const deviceRef = req.headers.get("X-Device-Ref");
     const signature = req.headers.get("X-Signature");
     if (!deviceRef || !signature) {
-      return Response.json({ error: "missing_auth_headers" }, { status: 401 });
+      return ingestJson({ error: "missing_auth_headers" }, 401);
     }
 
     const device = await ctx.runQuery(internal.ingest.getDeviceSecretHash, { deviceRef });
     if (!device) {
-      return Response.json({ error: "unknown_device" }, { status: 401 });
+      return ingestJson({ error: "unknown_device" }, 401);
     }
 
     const bodyBytes = new Uint8Array(await req.arrayBuffer());
     const expectedSignature = await hmacSha256Hex(device.secretHash, bodyBytes);
     if (!timingSafeEqualHex(signature.toLowerCase(), expectedSignature)) {
-      return Response.json({ error: "invalid_signature" }, { status: 401 });
+      return ingestJson({ error: "invalid_signature" }, 401);
     }
 
     let body: unknown;
     try {
       body = JSON.parse(new TextDecoder().decode(bodyBytes));
     } catch {
-      return Response.json({ error: "invalid_json" }, { status: 400 });
+      return ingestJson({ error: "invalid_json" }, 400);
     }
 
     const events = parseIngestBody(body);
     if (!events || events.length === 0 || events.length > MAX_INGEST_BATCH_EVENTS) {
-      return Response.json({ error: "invalid_body" }, { status: 400 });
+      return ingestJson({ error: "invalid_body" }, 400);
     }
 
     const results = await ctx.runMutation(internal.ingest.recordBatch, { deviceRef, events });
-    return Response.json({ results }, { status: 200 });
+    return ingestJson({ results }, 200);
   }),
 });
 
