@@ -88,3 +88,19 @@ export const seedDefaults = internalMutation({
     return { created, updated };
   },
 });
+
+export const set = internalMutation({
+  args: { key: v.string(), value: settingValue },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .unique();
+    if (!existing) {
+      throw new Error(`unknown setting: ${args.key}`);
+    }
+    await ctx.db.patch(existing._id, { value: args.value });
+    return null;
+  },
+});
