@@ -3,14 +3,19 @@ import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { findOrCreateGuardian } from "./enrolment";
 import { requireSchoolScope } from "./lib/authz";
+import { nairobiDayStart } from "./lib/dates";
 import { recordEvent } from "./lib/events";
+import { smsSegments } from "./lib/gsm7";
 import { maskMsisdn } from "./lib/mask";
 import { notificationStatus } from "./schema";
-import { readSetting, SettingKey } from "./settings";
+import { readNumberSetting, readSetting, SettingKey } from "./settings";
 
 const RECENT_LIMIT = 20;
+const SPEND_SCAN_LIMIT = 2000;
 const SCHEMA_VERSION = 1;
 const DEFAULT_SMS_CHANNEL = "console";
+const DEFAULT_COST_PER_SEGMENT_KES = 1;
+const BILLED_STATUSES: ReadonlySet<string> = new Set(["sent", "delivered"]);
 
 export const getForDelivery = internalQuery({
   args: { notificationId: v.id("notifications") },
@@ -91,6 +96,7 @@ export const recentForSchool = query({
       body: v.string(),
       status: notificationStatus,
       failureReason: v.optional(v.string()),
+      suppressionReason: v.optional(v.string()),
       createdAt: v.number(),
     }),
   ),
@@ -108,8 +114,43 @@ export const recentForSchool = query({
       body: row.body,
       status: row.status,
       failureReason: row.failureReason,
+      suppressionReason: row.suppressionReason,
       createdAt: row._creationTime,
     }));
+  },
+});
+
+type RuleSpend = { ruleKey: string; sent: number; suppressed: number; segments: number; costKes: number };
+
+// NFR-605: spend per trigger type, computed on read for today's Nairobi day.
+// ponytail: bounded scan of the school's rows; move to an aggregate once a
+// day exceeds the read budget.
+export const spendByRuleToday = query({
+  args: { schoolId: v.id("schools") },
+  returns: v.array(
+    v.object({ ruleKey: v.string(), sent: v.number(), suppressed: v.number(), segments: v.number(), costKes: v.number() }),
+  ),
+  handler: async (ctx, args) => {
+    await requireSchoolScope(ctx, args.schoolId);
+    const costPerSegment = await readNumberSetting(ctx, SettingKey.SmsCostPerSegmentKes, DEFAULT_COST_PER_SEGMENT_KES);
+    const rows = await ctx.db
+      .query("notifications")
+      .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId).gte("_creationTime", nairobiDayStart(Date.now())))
+      .take(SPEND_SCAN_LIMIT);
+
+    const byRule = new Map<string, RuleSpend>();
+    for (const row of rows) {
+      const spend = byRule.get(row.ruleKey) ?? { ruleKey: row.ruleKey, sent: 0, suppressed: 0, segments: 0, costKes: 0 };
+      if (row.status === "suppressed") {
+        spend.suppressed += 1;
+      } else if (BILLED_STATUSES.has(row.status)) {
+        spend.sent += 1;
+        spend.segments += row.segments;
+        spend.costKes += row.segments * costPerSegment;
+      }
+      byRule.set(row.ruleKey, spend);
+    }
+    return [...byRule.values()];
   },
 });
 
@@ -139,6 +180,7 @@ export const sendTest = internalMutation({
       msisdn: args.msisdn,
       channel: "sms",
       body: args.body,
+      segments: smsSegments(args.body),
       status: "queued",
     });
     await ctx.scheduler.runAfter(0, internal.channels.deliver, { notificationId });

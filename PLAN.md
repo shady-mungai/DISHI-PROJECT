@@ -207,7 +207,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D5 simulator + DLR + live count screen + demo rehearsal — typecheck, lint, build, 44/44 tests green; rehearsed on live deployment: 32 expectations → 29 taps via /ingest (940 ms) → replay 29 duplicates → sweep 3 missed → 32 SMS via console channel → DLR flips to delivered
 
 **Sprint 2**
-- [ ] D6 policy layer + templates + cost instrumentation
+- [x] D6 policy layer + templates + cost instrumentation — typecheck, lint, 63/63 tests green; deployed to dev (rules + notifications tables cleared and re-seeded for the schema change)
 - [ ] D7 collapse/merge + digest + 55% assertion
 - [ ] D8 wallet + hysteresis + depletion forecast
 - [ ] D9 USSD
@@ -411,3 +411,28 @@ _Appended as we go. Date, decision, why._
   templates can say `Dear {{guardian}}`; `seedRules` patches an existing rule's template
   when the seed text changes. `seed.resetPilotRoster` wipes roster-derived tables and
   loads five real pilot families (Grade 6B, KES 100 opening balance) for handset testing.
+- **2026-09-15 — D6: the policy layer is one pure function.** `lib/policy.ts` →
+  `applyPolicy(input) → send | defer | suppress(reason)`; `rules.notifyGuardians` gathers
+  the inputs (guardian opt-outs, settings, today's count) and acts on the verdict. Order
+  follows FR-501 with two honest deviations: dedupe runs *first* as the idempotent replay
+  guard (a suppressed row carries the same `dedupeKey`, so a replay of an opted-out event
+  writes nothing twice), and the cap is checked before deferral (a deferred message still
+  counts against today, so "at cap during quiet hours" is `daily_cap`, not a 06:00 send).
+  Collapse and priority ranking are D7 — they need the scheduled flush to have anything
+  to rank. Quiet hours *defer* rather than drop: `deliverAt` on the row and
+  `scheduler.runAt` instead of `runAfter(0)`. All hours are Nairobi (UTC+3, no DST;
+  `lib/dates.ts` helpers). Suppressed messages are notification rows with
+  `status: suppressed` + `suppressionReason`, plus a `notification.suppressed` event
+  (FR-502). Cap is a per-guardian index scan over today's rows (`by_guardian` +
+  `_creationTime`), not the rate-limiter component — ceiling noted in code.
+- **2026-09-15 — D6: templates are `{ en, sw }` with a `templateVersion`.** The guardian's
+  `language` picks the text; the notification row records the version it was rendered
+  from. `assertSingleSegment` renders each template at worst-case widths (24-char names,
+  30-char school) and counts GSM-7 segments (`lib/gsm7.ts`: basic set 1, extended set 2,
+  any other char → UCS-2/70); `seedRules` throws before insert and `tests/gsm7.test.ts`
+  asserts every demo template — so an over-long template fails at typecheck/test time,
+  not on a guardian's phone. Spend is computed on read: `notifications.spendByRuleToday`
+  sums `segments × smsCostPerSegmentKes` (new setting, KES 0.80) per `ruleKey` for
+  sent/delivered rows and counts suppressed alongside, shown on `/service-day`. Schema
+  change required clearing `rules` and `notifications` on dev (rehearsal data only).
+

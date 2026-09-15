@@ -26,7 +26,12 @@ export const notificationStatus = v.union(
   v.literal("sent"),
   v.literal("delivered"),
   v.literal("failed"),
+  v.literal("suppressed"),
 );
+
+export const guardianLanguage = v.union(v.literal("en"), v.literal("sw"));
+
+export const localisedTemplates = v.object({ en: v.string(), sw: v.string() });
 
 export const notificationChannel = v.literal("sms");
 
@@ -60,7 +65,7 @@ export default defineSchema({
   guardians: defineTable({
     msisdn: v.string(),
     displayName: v.string(),
-    language: v.union(v.literal("en"), v.literal("sw")),
+    language: guardianLanguage,
     optedOutTypes: v.array(v.string()),
     consentRecordedAt: v.optional(v.number()),
     consentBasis: v.optional(v.string()),
@@ -150,7 +155,8 @@ export default defineSchema({
     eventType: v.string(),
     predicate: v.string(),
     audience: ruleAudience,
-    template: v.string(),
+    templates: localisedTemplates,
+    templateVersion: v.number(),
     channel: notificationChannel,
     priority: v.number(),
     enabled: v.boolean(),
@@ -168,12 +174,17 @@ export default defineSchema({
     msisdn: v.string(),
     channel: notificationChannel,
     body: v.string(),
+    segments: v.number(),
+    templateVersion: v.optional(v.number()),
     status: notificationStatus,
+    suppressionReason: v.optional(v.string()),
+    deliverAt: v.optional(v.number()),
     providerMessageId: v.optional(v.string()),
     failureReason: v.optional(v.string()),
     sentAt: v.optional(v.number()),
   })
     .index("by_dedupeKey", ["dedupeKey"])
+    .index("by_guardian", ["guardianId"])
     .index("by_correlationId", ["correlationId"])
     .index("by_providerMessageId", ["providerMessageId"])
     .index("by_school", ["schoolId"]),

@@ -22,6 +22,7 @@ export const SettingKey = {
   OverrideRateTolerancePct: "overrideRateTolerancePct",
   ClockSkewToleranceSeconds: "clockSkewToleranceSeconds",
   SmsChannel: "smsChannel",
+  SmsCostPerSegmentKes: "smsCostPerSegmentKes",
 } as const;
 
 export const DEMO_SETTINGS: ReadonlyArray<{
@@ -44,7 +45,13 @@ export const DEMO_SETTINGS: ReadonlyArray<{
   { key: SettingKey.OverrideRateTolerancePct, value: 15, description: "Override rate above which a school is flagged" },
   { key: SettingKey.ClockSkewToleranceSeconds, value: 120, description: "Device clock skew tolerated before flagging" },
   { key: SettingKey.SmsChannel, value: "console", description: "SMS channel adapter: console | celcom | africastalking" },
+  { key: SettingKey.SmsCostPerSegmentKes, value: 0.8, description: "Gateway price per SMS segment, for spend reporting" },
 ];
+
+export async function readNumberSetting(ctx: QueryCtx, key: string, fallback: number): Promise<number> {
+  const value = await readSetting(ctx, key);
+  return typeof value === "number" ? value : fallback;
+}
 
 export async function readSetting(
   ctx: QueryCtx,

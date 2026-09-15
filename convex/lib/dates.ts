@@ -23,3 +23,22 @@ export function serviceStartFor(serviceDate: string): number {
   const minute = String(SERVICE_START_UTC.minute).padStart(2, "0");
   return Date.parse(`${serviceDate}T${hour}:${minute}:00.000Z`);
 }
+
+const NAIROBI_UTC_OFFSET_HOURS = 3;
+const MILLISECONDS_PER_HOUR = 3_600_000;
+const HOURS_PER_DAY = 24;
+
+export function nairobiHour(epochMs: number): number {
+  return new Date(epochMs + NAIROBI_UTC_OFFSET_HOURS * MILLISECONDS_PER_HOUR).getUTCHours();
+}
+
+export function nairobiDayStart(epochMs: number): number {
+  const shifted = epochMs + NAIROBI_UTC_OFFSET_HOURS * MILLISECONDS_PER_HOUR;
+  const localMidnight = shifted - (shifted % MILLISECONDS_PER_DAY);
+  return localMidnight - NAIROBI_UTC_OFFSET_HOURS * MILLISECONDS_PER_HOUR;
+}
+
+export function nextNairobiHour(epochMs: number, hour: number): number {
+  const candidate = nairobiDayStart(epochMs) + hour * MILLISECONDS_PER_HOUR;
+  return candidate > epochMs ? candidate : candidate + HOURS_PER_DAY * MILLISECONDS_PER_HOUR;
+}
