@@ -21,7 +21,7 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     eventType: "meal.tapped",
     predicate: ALWAYS,
     audience: "guardian",
-    template: "{{child}} had lunch at {{school}} today ({{date}}).",
+    template: "Dear {{guardian}}, {{child}} had lunch at {{school}} today ({{date}}).",
     channel: "sms",
     priority: DEFAULT_PRIORITY,
     enabled: true,
@@ -31,7 +31,7 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     eventType: "meal.missed",
     predicate: ALWAYS,
     audience: "guardian",
-    template: "{{child}} did not tap for lunch at {{school}} on {{date}}. Please check in.",
+    template: "Dear {{guardian}}, {{child}} did not tap for lunch at {{school}} on {{date}}. Please check in.",
     channel: "sms",
     priority: DEFAULT_PRIORITY,
     enabled: true,
@@ -48,6 +48,8 @@ export async function seedRules(ctx: MutationCtx): Promise<number> {
     if (!existing) {
       await ctx.db.insert("rules", rule);
       created += 1;
+    } else if (existing.template !== rule.template) {
+      await ctx.db.patch(existing._id, { template: rule.template });
     }
   }
   return created;
@@ -62,11 +64,11 @@ async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<
     return 0;
   }
   const school = await ctx.db.get(student.schoolId);
-  const body = renderTemplate(rule.template, {
+  const templateVars = {
     child: student.fullName,
     school: school?.name ?? "",
     date: event.serviceDate ?? "",
-  });
+  };
 
   const links = await ctx.db
     .query("guardianLinks")
@@ -87,6 +89,7 @@ async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<
     if (duplicate) {
       continue;
     }
+    const body = renderTemplate(rule.template, { ...templateVars, guardian: guardian.displayName });
     const notificationId = await ctx.db.insert("notifications", {
       dedupeKey,
       ruleKey: rule.key,

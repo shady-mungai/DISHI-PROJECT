@@ -12,6 +12,7 @@ const SERVICE_START_AT = Date.parse(`${SCHOOL_DAY}T09:30:00.000Z`);
 const DEVICE_REF = "READER-01";
 const TAG_UID = "tag-001";
 const GUARDIAN_MSISDN = "+254700000123";
+const GUARDIAN_NAME = "Wanjiku Njeri";
 const TAPPED_RULE = "guardian.meal_tapped";
 const MISSED_RULE = "guardian.meal_missed";
 
@@ -31,7 +32,7 @@ async function seedWorld(t: Harness): Promise<{ schoolId: Id<"schools">; student
     });
     const guardianId = await ctx.db.insert("guardians", {
       msisdn: GUARDIAN_MSISDN,
-      displayName: "Guardian",
+      displayName: GUARDIAN_NAME,
       language: "en",
       optedOutTypes: [],
     });
@@ -105,6 +106,7 @@ describe("rules engine", () => {
     expect(rows[0].ruleKey).toBe(TAPPED_RULE);
     expect(rows[0].msisdn).toBe(GUARDIAN_MSISDN);
     expect(rows[0].body).toContain("Amina Njeri");
+    expect(rows[0].body).toContain(`Dear ${GUARDIAN_NAME}`);
     expect(rows[0].body).toContain(SCHOOL_DAY);
     expect(rows[0].status).toBe("sent");
   });

@@ -400,3 +400,14 @@ _Appended as we go. Date, decision, why._
   cross-origin with custom headers, so it needs an `OPTIONS` route and CORS headers on
   every response; `Allow-Origin: *` is fine because the endpoint is HMAC-authenticated
   and cookie-free. Verified live: 13 phone taps → 1 accepted, 12 `second_tap_same_day`.
+- **2026-09-15 — Celcom is live on the dev deployment.** `settings.set` (internal) flips
+  `smsChannel` to `celcom` without a redeploy; the adapter strips a leading `+` because the
+  gateway wants bare `254…`. Celcom's DLR posts `{ messageid, description, timeTaken,
+  timestamp }` with the state in `description` (e.g. `DeliveredToTerminal`), so
+  `description` is now a status key as well as a reason key. `notifications.sendTest`
+  (internal) inserts a real `notification.test` event + queued notification and runs it
+  through `channels.deliver` and `/dlr` — the smoke test uses the production path, not a
+  side door. Guardians now carry `displayName` from the roster (`guardianName` column) so
+  templates can say `Dear {{guardian}}`; `seedRules` patches an existing rule's template
+  when the seed text changes. `seed.resetPilotRoster` wipes roster-derived tables and
+  loads five real pilot families (Grade 6B, KES 100 opening balance) for handset testing.

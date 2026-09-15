@@ -50,3 +50,29 @@ describe("seedDemo", () => {
     expect(schoolDays).toBe(WEEKDAYS_IN_WINDOW);
   });
 });
+
+describe("resetPilotRoster", () => {
+  test("replaces the roster with named guardians sharing the child's surname", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.seed.seedDemo, { startDate: START_DATE, calendarDays: CALENDAR_DAYS });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("guardians", {
+        msisdn: "254799999999",
+        displayName: "254799999999",
+        language: "en",
+        optedOutTypes: [],
+      });
+    });
+
+    const result = await t.mutation(internal.seed.resetPilotRoster, {});
+
+    const guardians = await t.run((ctx) => ctx.db.query("guardians").collect());
+    const students = await t.run((ctx) => ctx.db.query("students").collect());
+    expect(result).toEqual({ studentsCreated: 5, guardiansCreated: 5 });
+    expect(guardians).toHaveLength(5);
+    for (const guardian of guardians) {
+      const surname = guardian.displayName.split(" ").at(-1);
+      expect(students.some((student) => student.fullName.endsWith(` ${surname}`))).toBe(true);
+    }
+  });
+});
