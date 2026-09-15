@@ -1,5 +1,7 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, query } from "./_generated/server";
+import { findOrCreateGuardian } from "./enrolment";
 import { requireSchoolScope } from "./lib/authz";
 import { recordEvent } from "./lib/events";
 import { maskMsisdn } from "./lib/mask";
@@ -108,5 +110,38 @@ export const recentForSchool = query({
       failureReason: row.failureReason,
       createdAt: row._creationTime,
     }));
+  },
+});
+
+// Ops smoke test: one real notification through deliver and the DLR webhook.
+export const sendTest = internalMutation({
+  args: { msisdn: v.string(), body: v.string() },
+  returns: v.id("notifications"),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const correlationId = crypto.randomUUID();
+    const guardian = await findOrCreateGuardian(ctx, args.msisdn);
+    const eventId = await ctx.db.insert("events", {
+      eventId: `notification.test:${correlationId}`,
+      type: "notification.test",
+      occurredAt: now,
+      recordedAt: now,
+      schemaVersion: SCHEMA_VERSION,
+      correlationId,
+      payload: {},
+    });
+    const notificationId = await ctx.db.insert("notifications", {
+      dedupeKey: `test:${correlationId}`,
+      ruleKey: "test",
+      eventId,
+      correlationId,
+      guardianId: guardian.id,
+      msisdn: args.msisdn,
+      channel: "sms",
+      body: args.body,
+      status: "queued",
+    });
+    await ctx.scheduler.runAfter(0, internal.channels.deliver, { notificationId });
+    return notificationId;
   },
 });

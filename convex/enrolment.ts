@@ -114,7 +114,7 @@ export async function commitRosterRows(
   return { studentsCreated: rows.length, guardiansCreated };
 }
 
-async function findOrCreateGuardian(
+export async function findOrCreateGuardian(
   ctx: MutationCtx,
   msisdn: string,
 ): Promise<{ id: Id<"guardians">; created: boolean }> {

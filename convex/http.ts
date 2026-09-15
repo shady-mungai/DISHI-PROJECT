@@ -79,8 +79,10 @@ http.route({
       return Response.json({ error: "invalid_token" }, { status: 401 });
     }
 
-    const report = parseDeliveryReport(bodyToRecord(req.headers.get("Content-Type"), await req.text()));
+    const body = bodyToRecord(req.headers.get("Content-Type"), await req.text());
+    const report = parseDeliveryReport(body);
     if (!report) {
+      console.log("dlr unparsed keys", body && typeof body === "object" ? Object.keys(body) : typeof body);
       return Response.json({ error: "invalid_body" }, { status: 400 });
     }
 

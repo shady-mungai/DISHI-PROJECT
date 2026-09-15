@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { settingValue } from "./schema";
 import type { Infer } from "convex/values";
@@ -103,10 +103,4 @@ export const set = internalMutation({
     await ctx.db.patch(existing._id, { value: args.value });
     return null;
   },
-});
-
-export const getSmsChannel = internalQuery({
-  args: {},
-  returns: v.string(),
-  handler: async (ctx) => String((await readSetting(ctx, SettingKey.SmsChannel)) ?? "console"),
 });
