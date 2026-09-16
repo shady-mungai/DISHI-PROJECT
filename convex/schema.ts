@@ -179,6 +179,7 @@ export default defineSchema({
     status: notificationStatus,
     suppressionReason: v.optional(v.string()),
     deliverAt: v.optional(v.number()),
+    collapsedInto: v.optional(v.id("notifications")),
     providerMessageId: v.optional(v.string()),
     failureReason: v.optional(v.string()),
     sentAt: v.optional(v.number()),
@@ -187,6 +188,7 @@ export default defineSchema({
     .index("by_guardian", ["guardianId"])
     .index("by_correlationId", ["correlationId"])
     .index("by_providerMessageId", ["providerMessageId"])
+    .index("by_collapsedInto", ["collapsedInto"])
     .index("by_school", ["schoolId"]),
 
   settings: defineTable({

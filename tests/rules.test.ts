@@ -194,6 +194,7 @@ describe("rules engine", () => {
     const t = convexTest(schema, modules);
     const { schoolId, guardianId } = await seedWorld(t);
     await setSetting(t, "dailyMessageCap", 1);
+    await setSetting(t, "collapseWindowMinutes", 0);
     await t.run(async (ctx) => {
       const secondStudentId = await ctx.db.insert("students", {
         schoolId,
@@ -246,7 +247,7 @@ describe("rules engine", () => {
 
     const rows = await notifications(t);
     expect(rows[0].body).toContain("Mpendwa");
-    expect(rows[0].templateVersion).toBe(2);
+    expect(rows[0].templateVersion).toBe(3);
     expect(rows[0].segments).toBe(1);
   });
 });

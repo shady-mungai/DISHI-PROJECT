@@ -15,6 +15,8 @@ const base: PolicyInput = {
   quietHoursEnd: 6,
   sentTodayCount: 0,
   dailyCap: 3,
+  hasOpenCollapseWindow: false,
+  collapseWindowMs: 0,
 };
 
 describe("notification policy (FR-501)", () => {
@@ -38,6 +40,16 @@ describe("notification policy (FR-501)", () => {
       action: "suppress",
       reason: "daily_cap",
     });
+  });
+
+  test("an open collapse window merges, even at the cap (FR-503, P-06)", () => {
+    expect(applyPolicy({ ...base, hasOpenCollapseWindow: true, sentTodayCount: 3 })).toEqual({ action: "merge" });
+  });
+
+  test("a collapse window defers to the window end; quiet hours extend it", () => {
+    const tenMinutes = 10 * 60_000;
+    expect(applyPolicy({ ...base, collapseWindowMs: tenMinutes })).toEqual({ action: "defer", deliverAt: NOON_NAIROBI + tenMinutes });
+    expect(applyPolicy({ ...base, now: TEN_PM_NAIROBI, collapseWindowMs: tenMinutes })).toEqual({ action: "defer", deliverAt: SIX_AM_NEXT_DAY });
   });
 
   test("Nairobi clock helpers", () => {

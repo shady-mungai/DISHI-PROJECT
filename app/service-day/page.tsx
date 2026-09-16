@@ -116,6 +116,7 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">SMS spend today</h2>
         {spend?.length === 0 && <p className="text-sm text-zinc-500">Nothing sent yet.</p>}
+        {spend && spend.length > 0 && <p className="text-sm text-zinc-500">{volumeReductionLabel(spend)}</p>}
         <ul className="flex flex-col gap-1 text-sm">
           {spend?.map((row) => (
             <li key={row.ruleKey} className={NOTIFICATION_CLASS}>
@@ -129,6 +130,18 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
       </section>
     </div>
   );
+}
+
+type SpendRow = { sent: number; suppressed: number };
+
+// NFR-602: reduction against the naive one-message-per-trigger baseline.
+function volumeReductionLabel(rows: SpendRow[]): string {
+  const sent = rows.reduce((sum, row) => sum + row.sent, 0);
+  const candidates = sent + rows.reduce((sum, row) => sum + row.suppressed, 0);
+  if (candidates === 0) {
+    return "";
+  }
+  return `${Math.round((1 - sent / candidates) * 100)}% below the naive per-trigger baseline (${sent} of ${candidates})`;
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {

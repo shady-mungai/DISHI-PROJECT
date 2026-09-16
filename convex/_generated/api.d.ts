@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as channels from "../channels.js";
 import type * as crons from "../crons.js";
 import type * as devices from "../devices.js";
+import type * as digest from "../digest.js";
 import type * as enrolment from "../enrolment.js";
 import type * as enrolment_parsePdf from "../enrolment/parsePdf.js";
 import type * as expectations from "../expectations.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   channels: typeof channels;
   crons: typeof crons;
   devices: typeof devices;
+  digest: typeof digest;
   enrolment: typeof enrolment;
   "enrolment/parsePdf": typeof enrolment_parsePdf;
   expectations: typeof expectations;

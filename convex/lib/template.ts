@@ -10,6 +10,15 @@ const WORST_CASE_VARS: Record<string, string> = {
   date: WORST_CASE_DATE,
 };
 
+export const GREETINGS: Record<"en" | "sw", string> = {
+  en: "Dear {{guardian}}, ",
+  sw: "Mpendwa {{guardian}}, ",
+};
+
+export function renderGreeting(language: "en" | "sw", guardian: string): string {
+  return renderTemplate(GREETINGS[language], { guardian });
+}
+
 export function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(PLACEHOLDER, (match, name: string) => vars[name] ?? match);
 }

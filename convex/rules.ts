@@ -1,25 +1,30 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { nairobiDayStart } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { smsSegments } from "./lib/gsm7";
-import { applyPolicy, type PolicyDecision } from "./lib/policy";
+import { applyPolicy, SuppressionReason, type PolicyDecision } from "./lib/policy";
 import { evaluatePredicate, parsePredicate } from "./lib/predicate";
-import { renderTemplate, renderWorstCase } from "./lib/template";
+import { GREETINGS, renderGreeting, renderTemplate, renderWorstCase } from "./lib/template";
 import { readNumberSetting, SettingKey } from "./settings";
 
 const MAX_RULES_PER_EVENT = 50;
 const MAX_GUARDIANS_PER_STUDENT = 10;
 const ALWAYS = JSON.stringify({ op: "always" });
 const DEFAULT_PRIORITY = 100;
+const MISSED_PRIORITY = 200;
 const DEFAULT_DAILY_CAP = 3;
 const DEFAULT_QUIET_START_HOUR = 21;
 const DEFAULT_QUIET_END_HOUR = 6;
+const DEFAULT_COLLAPSE_WINDOW_MINUTES = 10;
+const MILLISECONDS_PER_MINUTE = 60_000;
 const SINGLE_SEGMENT = 1;
 const SCHEMA_VERSION = 1;
+const SENTENCE_SEPARATOR = " ";
+export const WEEKLY_DIGEST_EVENT = "digest.weekly";
 
 type RuleSeed = Omit<Doc<"rules">, "_id" | "_creationTime">;
 
@@ -32,10 +37,10 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     predicate: ALWAYS,
     audience: "guardian",
     templates: {
-      en: "Dear {{guardian}}, {{child}} had lunch at {{school}} today ({{date}}).",
-      sw: "Mpendwa {{guardian}}, {{child}} amekula chakula cha mchana {{school}} leo ({{date}}).",
+      en: "{{child}} had lunch at {{school}} today ({{date}}).",
+      sw: "{{child}} amekula chakula cha mchana {{school}} leo ({{date}}).",
     },
-    templateVersion: 2,
+    templateVersion: 3,
     channel: "sms",
     priority: DEFAULT_PRIORITY,
     enabled: true,
@@ -46,10 +51,24 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     predicate: ALWAYS,
     audience: "guardian",
     templates: {
-      en: "Dear {{guardian}}, {{child}} did not tap for lunch at {{school}} on {{date}}. Please check in.",
-      sw: "Mpendwa {{guardian}}, {{child}} hakula chakula cha mchana {{school}} tarehe {{date}}. Tafadhali fuatilia.",
+      en: "{{child}} did not tap for lunch at {{school}} on {{date}}. Please check in.",
+      sw: "{{child}} hakula chakula cha mchana {{school}} tarehe {{date}}. Tafadhali fuatilia.",
     },
-    templateVersion: 2,
+    templateVersion: 3,
+    channel: "sms",
+    priority: MISSED_PRIORITY,
+    enabled: true,
+  },
+  {
+    key: "guardian.weekly_digest",
+    eventType: WEEKLY_DIGEST_EVENT,
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "This week: {{summary}}.",
+      sw: "Wiki hii: {{summary}}.",
+    },
+    templateVersion: 1,
     channel: "sms",
     priority: DEFAULT_PRIORITY,
     enabled: true,
@@ -60,7 +79,7 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
 // it is ever stored.
 export function assertSingleSegment(rule: RuleSeed): void {
   for (const [language, template] of Object.entries(rule.templates)) {
-    const segments = smsSegments(renderWorstCase(template));
+    const segments = smsSegments(renderWorstCase(GREETINGS[language as keyof typeof GREETINGS] + template));
     if (segments > SINGLE_SEGMENT) {
       throw new Error(`rule ${rule.key} (${language}) can span ${segments} segments`);
     }
@@ -87,24 +106,40 @@ export async function seedRules(ctx: MutationCtx): Promise<number> {
 
 // ponytail: cap is a per-guardian day scan (≤ cap rows); the rate-limiter
 // component replaces this if guardians ever get more than a handful a day.
-async function countSentToday(ctx: MutationCtx, guardianId: Doc<"guardians">["_id"], now: number): Promise<number> {
-  const today = await ctx.db
+async function todaysRows(ctx: MutationCtx, guardianId: Id<"guardians">, now: number): Promise<Doc<"notifications">[]> {
+  return await ctx.db
     .query("notifications")
     .withIndex("by_guardian", (q) => q.eq("guardianId", guardianId).gte("_creationTime", nairobiDayStart(now)))
     .collect();
-  return today.filter((row) => row.status !== "suppressed").length;
 }
 
-async function decide(ctx: MutationCtx, guardian: Doc<"guardians">, eventType: string, now: number): Promise<PolicyDecision> {
-  return applyPolicy({
+// FR-503: a queued row whose deliverAt is still ahead is the open collapse
+// window for this guardian — the pending message *is* the window.
+function openCarrier(rows: Doc<"notifications">[], now: number): Doc<"notifications"> | undefined {
+  return rows.find((row) => row.status === "queued" && row.collapsedInto === undefined && (row.deliverAt ?? 0) > now);
+}
+
+async function decide(
+  ctx: MutationCtx,
+  guardian: Doc<"guardians">,
+  eventType: string,
+  now: number,
+): Promise<{ decision: PolicyDecision; carrier?: Doc<"notifications"> }> {
+  const rows = await todaysRows(ctx, guardian._id, now);
+  const carrier = openCarrier(rows, now);
+  const collapseWindowMinutes = await readNumberSetting(ctx, SettingKey.CollapseWindowMinutes, DEFAULT_COLLAPSE_WINDOW_MINUTES);
+  const decision = applyPolicy({
     eventType,
     optedOutTypes: guardian.optedOutTypes,
     now,
     quietHoursStart: await readNumberSetting(ctx, SettingKey.QuietHoursStartHour, DEFAULT_QUIET_START_HOUR),
     quietHoursEnd: await readNumberSetting(ctx, SettingKey.QuietHoursEndHour, DEFAULT_QUIET_END_HOUR),
-    sentTodayCount: await countSentToday(ctx, guardian._id, now),
+    sentTodayCount: rows.filter((row) => row.status !== "suppressed").length,
     dailyCap: await readNumberSetting(ctx, SettingKey.DailyMessageCap, DEFAULT_DAILY_CAP),
+    hasOpenCollapseWindow: carrier !== undefined,
+    collapseWindowMs: collapseWindowMinutes * MILLISECONDS_PER_MINUTE,
   });
+  return { decision, carrier };
 }
 
 type Candidate = {
@@ -160,36 +195,65 @@ async function queueNotification(ctx: MutationCtx, candidate: Candidate, deliver
     await ctx.scheduler.runAfter(0, internal.channels.deliver, { notificationId });
     return;
   }
-  await ctx.scheduler.runAt(deliverAt, internal.channels.deliver, { notificationId });
+  await ctx.scheduler.runAt(deliverAt, internal.rules.flushCollapsed, { notificationId });
+}
+
+// FR-503/FR-504: the merged row is kept for audit (status suppressed, reason
+// collapsed) and its sentence is composed into the carrier at flush.
+async function mergeIntoCarrier(ctx: MutationCtx, candidate: Candidate, carrier: Doc<"notifications">, now: number): Promise<void> {
+  const notificationId = await ctx.db.insert("notifications", {
+    ...notificationFields(candidate),
+    status: "suppressed",
+    suppressionReason: SuppressionReason.Collapsed,
+    collapsedInto: carrier._id,
+  });
+  await recordEvent(ctx, {
+    eventId: `notification.suppressed:${notificationId}`,
+    type: "notification.suppressed",
+    occurredAt: now,
+    recordedAt: now,
+    schemaVersion: SCHEMA_VERSION,
+    correlationId: candidate.event.correlationId,
+    payload: { notification_id: notificationId, suppression_reason: SuppressionReason.Collapsed, rule_key: candidate.rule.key, collapsed_into: carrier._id },
+    schoolId: candidate.event.schoolId,
+  });
+}
+
+type Recipients = { guardians: Doc<"guardians">[]; vars: Record<string, string> };
+
+// A student event fans out to the linked guardians; a guardian-addressed event
+// (weekly digest) names its recipient and carries its own template vars.
+async function resolveRecipients(ctx: MutationCtx, event: Doc<"events">): Promise<Recipients> {
+  if (event.studentId) {
+    const student = await ctx.db.get(event.studentId);
+    if (!student) {
+      return { guardians: [], vars: {} };
+    }
+    const school = await ctx.db.get(student.schoolId);
+    const links = await ctx.db
+      .query("guardianLinks")
+      .withIndex("by_student", (q) => q.eq("studentId", student._id))
+      .take(MAX_GUARDIANS_PER_STUDENT);
+    const guardians: Doc<"guardians">[] = [];
+    for (const link of links.filter((candidate) => candidate.active)) {
+      const guardian = await ctx.db.get(link.guardianId);
+      if (guardian) {
+        guardians.push(guardian);
+      }
+    }
+    return { guardians, vars: { child: student.fullName, school: school?.name ?? "", date: event.serviceDate ?? "" } };
+  }
+  const guardianId = typeof event.payload.guardian_id === "string" ? ctx.db.normalizeId("guardians", event.payload.guardian_id) : null;
+  const guardian = guardianId ? await ctx.db.get(guardianId) : null;
+  const vars = Object.fromEntries(Object.entries(event.payload).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+  return { guardians: guardian ? [guardian] : [], vars };
 }
 
 async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<"events">): Promise<number> {
-  if (!event.studentId) {
-    return 0;
-  }
-  const student = await ctx.db.get(event.studentId);
-  if (!student) {
-    return 0;
-  }
-  const school = await ctx.db.get(student.schoolId);
-  const templateVars = {
-    child: student.fullName,
-    school: school?.name ?? "",
-    date: event.serviceDate ?? "",
-  };
-
-  const links = await ctx.db
-    .query("guardianLinks")
-    .withIndex("by_student", (q) => q.eq("studentId", student._id))
-    .take(MAX_GUARDIANS_PER_STUDENT);
-
+  const { guardians, vars } = await resolveRecipients(ctx, event);
   const now = Date.now();
   let queued = 0;
-  for (const link of links.filter((candidate) => candidate.active)) {
-    const guardian = await ctx.db.get(link.guardianId);
-    if (!guardian) {
-      continue;
-    }
+  for (const guardian of guardians) {
     const dedupeKey = `${rule.key}:${event.eventId}:${guardian._id}`;
     const duplicate = await ctx.db
       .query("notifications")
@@ -198,11 +262,15 @@ async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<
     if (duplicate) {
       continue;
     }
-    const body = renderTemplate(rule.templates[guardian.language], { ...templateVars, guardian: guardian.displayName });
+    const body = renderGreeting(guardian.language, guardian.displayName) + renderTemplate(rule.templates[guardian.language], vars);
     const candidate: Candidate = { rule, event, guardian, dedupeKey, body };
-    const decision = await decide(ctx, guardian, event.type, now);
+    const { decision, carrier } = await decide(ctx, guardian, event.type, now);
     if (decision.action === "suppress") {
       await recordSuppressed(ctx, candidate, decision.reason, now);
+      continue;
+    }
+    if (decision.action === "merge" && carrier) {
+      await mergeIntoCarrier(ctx, candidate, carrier, now);
       continue;
     }
     await queueNotification(ctx, candidate, decision.action === "defer" ? decision.deliverAt : undefined);
@@ -210,6 +278,47 @@ async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<
   }
   return queued;
 }
+
+function stripGreeting(row: Doc<"notifications">, greeting: string): string {
+  return row.body.startsWith(greeting) ? row.body.slice(greeting.length) : row.body;
+}
+
+async function rulePriority(ctx: MutationCtx, ruleKey: string): Promise<number> {
+  const rule = await ctx.db
+    .query("rules")
+    .withIndex("by_key", (q) => q.eq("key", ruleKey))
+    .unique();
+  return rule?.priority ?? DEFAULT_PRIORITY;
+}
+
+// FR-503/FR-504/P-11: at window end, compose the carrier and everything merged
+// into it into one message, highest rule priority first, then hand to deliver.
+export const flushCollapsed = internalMutation({
+  args: { notificationId: v.id("notifications") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const carrier = await ctx.db.get(args.notificationId);
+    if (!carrier || carrier.status !== "queued") {
+      return null;
+    }
+    const merged = await ctx.db
+      .query("notifications")
+      .withIndex("by_collapsedInto", (q) => q.eq("collapsedInto", carrier._id))
+      .collect();
+    if (merged.length > 0) {
+      const guardian = await ctx.db.get(carrier.guardianId);
+      const greeting = guardian ? renderGreeting(guardian.language, guardian.displayName) : "";
+      const ranked = await Promise.all(
+        [carrier, ...merged].map(async (row) => ({ sentence: stripGreeting(row, greeting), priority: await rulePriority(ctx, row.ruleKey) })),
+      );
+      ranked.sort((a, b) => b.priority - a.priority);
+      const body = greeting + ranked.map((entry) => entry.sentence).join(SENTENCE_SEPARATOR);
+      await ctx.db.patch(carrier._id, { body, segments: smsSegments(body) });
+    }
+    await ctx.scheduler.runAfter(0, internal.channels.deliver, { notificationId: carrier._id });
+    return null;
+  },
+});
 
 // FR-402 (Event + Absence classes): scheduled by recordEvent for every event.
 // Re-running for the same event is a no-op via the notification dedupeKey.

@@ -208,7 +208,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 
 **Sprint 2**
 - [x] D6 policy layer + templates + cost instrumentation — typecheck, lint, 63/63 tests green; deployed to dev (rules + notifications tables cleared and re-seeded for the schema change)
-- [ ] D7 collapse/merge + digest + 55% assertion
+- [x] D7 collapse/merge + digest + 55% assertion — typecheck, lint, build, 68/68 tests green; `tests/collapse.test.ts` asserts 67% reduction (12 triggers → 4 SMS) with both missed-meal alerts composed first; deployed to dev, rules re-seeded (templates v3 + digest rule)
 - [ ] D8 wallet + hysteresis + depletion forecast
 - [ ] D9 USSD
 - [ ] D10 dispatch → confirm → reconcile → payment file
@@ -435,4 +435,28 @@ _Appended as we go. Date, decision, why._
   sums `segments × smsCostPerSegmentKes` (new setting, KES 0.80) per `ruleKey` for
   sent/delivered rows and counts suppressed alongside, shown on `/service-day`. Schema
   change required clearing `rules` and `notifications` on dev (rehearsal data only).
-
+- **2026-09-16 — D7: the pending message *is* the collapse window.** No new state
+  machine: a queued row whose `deliverAt` is still ahead is the guardian's open window
+  (`openCarrier` in `rules.ts`, found in the same `by_guardian` day scan the cap already
+  does). Every non-zero `collapseWindowMinutes` defers delivery to `now + window` (or the
+  end of quiet hours, whichever is later) via `runAt(deliverAt, rules.flushCollapsed)`;
+  a later trigger for the same guardian becomes a `suppressed / collapsed` row with
+  `collapsedInto` (audit row + `notification.suppressed` event, FR-502) and costs nothing.
+  `flushCollapsed` composes carrier + merged rows, highest rule priority first
+  (`meal.missed` = 200 outranks `meal.tapped` = 100), then hands to `channels.deliver`.
+  Merge is decided *before* the cap in `applyPolicy` (P-06: collapse, don't queue behind
+  the cap). `collapseWindowMinutes = 0` restores per-trigger sends — the cap test uses it.
+- **2026-09-16 — D7: greeting moved out of the templates (v3).** Templates are now one
+  sentence per child ("{{child}} had lunch at …"); `renderGreeting` prefixes
+  "Dear/Mpendwa {{guardian}}, " once, so a composed message reads as one message, not
+  three. `assertSingleSegment` checks greeting + template. At flush the greeting is
+  stripped by prefix match — deterministic because we built it.
+- **2026-09-16 — D7: the weekly digest is a guardian-addressed event, not a bypass.**
+  `digest.sendWeeklyDigest` (cron Fri 12:00 UTC = 15:00 Nairobi, or `serviceDate` arg)
+  records one `digest.weekly` event per guardian (`payload.guardian_id`, `summary` =
+  "Amina 4/5 meals, KES 80; …" over Mon→Fri expectations + mirrored wallet), idempotent
+  on `eventId`. `resolveRecipients` in `rules.ts` fans a student event out to linked
+  guardians and routes a guardian-addressed one to its named guardian with payload
+  strings as template vars — so opt-out, cap, quiet hours, collapse and dedupe all apply
+  to the digest for free. Digest may exceed one segment at real family sizes; segments
+  are recorded and billed, not blocked.
