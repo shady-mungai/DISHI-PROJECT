@@ -10,9 +10,10 @@ import type { IngestResult, ReaderDevice } from "./useReader";
 import { useNfcScanner, useReaderDevice, useTapQueue } from "./useReader";
 
 const PAGE_CLASS = "flex flex-1 flex-col gap-4 p-4 max-w-md mx-auto w-full";
-const PRIMARY_BUTTON_CLASS = "rounded bg-black px-4 py-3 text-white text-lg disabled:opacity-50";
-const SECONDARY_BUTTON_CLASS = "rounded border border-zinc-300 px-3 py-2";
-const ACTIVE_TAB_CLASS = "rounded bg-black px-3 py-2 text-white";
+const FILLED_CLASS = "bg-black text-white dark:bg-white dark:text-black";
+const PRIMARY_BUTTON_CLASS = `rounded px-4 py-3 text-lg disabled:opacity-50 ${FILLED_CLASS}`;
+const SECONDARY_BUTTON_CLASS = "rounded border border-zinc-300 px-3 py-2 text-zinc-500 dark:border-zinc-700";
+const ACTIVE_TAB_CLASS = `rounded px-3 py-2 ${FILLED_CLASS}`;
 const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2 w-full";
 const RESULT_CLASS = "rounded border border-zinc-200 p-4 text-center";
 const MUTED_CLASS = "text-sm text-zinc-500";
@@ -76,10 +77,10 @@ function Scanner({ schoolId, device }: { schoolId: Id<"schools">; device: Reader
       </div>
 
       <div className="flex gap-2">
-        <button type="button" onClick={() => setMode("serve")} className={mode === "serve" ? ACTIVE_TAB_CLASS : SECONDARY_BUTTON_CLASS}>
+        <button type="button" aria-pressed={mode === "serve"} onClick={() => setMode("serve")} className={mode === "serve" ? ACTIVE_TAB_CLASS : SECONDARY_BUTTON_CLASS}>
           Serve
         </button>
-        <button type="button" onClick={() => setMode("assign")} className={mode === "assign" ? ACTIVE_TAB_CLASS : SECONDARY_BUTTON_CLASS}>
+        <button type="button" aria-pressed={mode === "assign"} onClick={() => setMode("assign")} className={mode === "assign" ? ACTIVE_TAB_CLASS : SECONDARY_BUTTON_CLASS}>
           Assign tag
         </button>
       </div>
