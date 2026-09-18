@@ -497,19 +497,19 @@ _Appended as we go. Date, decision, why._
   field as a template var, so `{{balance}}`, `{{new_balance}}`, `{{meals_remaining}}`,
   `{{projected_date}}` need no special casing. Dev needs: `seed:seedDemo` (rules) and
   `settings:seedDefaults` (one new setting).
-- **2026-09-18 — D9: Celcom USSD sends only the latest keypress, so the path lives in
-  `ussdSessions`.** Celcom's callback is a GET with `SESSIONID, MSISDN, USSDCODE, INPUT`
-  where `INPUT` is the last entry only — not the accumulated `1*2*…` string Africa's
-  Talking sends. `ussd.step` (one mutation, one transaction) loads the session row by
-  `SESSIONID`, appends `INPUT` (`0` pops a level — global "back"), renders, applies any
-  effect, and deletes the row on `END`; an hourly cron sweeps rows idle >1h. The renderer
-  `lib/ussd.ts` is pure (`renderUssd(snapshot, inputs)`) with EN+SW copy in one table.
+- **2026-09-18 — D9: `INPUT` is the whole session, so there is no session table.** Celcom's
+  callback is a GET with `SESSIONID, MSISDN, USSDCODE (*265*39#), INPUT`, where `INPUT`
+  is the cumulative `*`-joined path (`""` → `"1"` → `"1*3"`), exactly the Africa's Talking
+  shape. `pathToInputs` splits it (a `0` pops the previous choice — global "back");
+  `renderUssd(snapshot, inputs)` in `lib/ussd.ts` is pure with EN+SW copy in one table;
+  `ussd.step` (one mutation) loads the guardian snapshot, renders, and applies any effect.
   Menu: status / balance / last 5 meal days (all from `expectations`, one indexed read
   per child, picker inserted only for multi-child guardians) / alert toggles (writes
   `guardians.optedOutTypes`, the same field the policy pipeline reads, so P-08 holds with
   no further wiring) / change number (validate → confirm → `guardian.contact_updated`
-  with old + new). Guardian lookup tries `+254…`, `254…` and `0…` because enrolment stores
-  the sheet's spelling verbatim. The shared token is a path segment
-  (`/ussd/<USSD_TOKEN>`), not a query param, so the gateway appending `?SESSIONID=…`
-  cannot clobber it. Response is `text/plain` with `CON`/`END` prefixes — confirm
-  against Celcom's spec on first real dial; only the two prefix strings would change.
+  with old + new). Effects are idempotent on `<type>:<SESSIONID>` so a replayed GET does
+  not flip a preference back. Guardian lookup tries `+254…`, `254…` and `0…` because
+  enrolment stores the sheet's spelling verbatim. The shared token is a path segment
+  (`/ussd/<USSD_TOKEN>`), not a query param, so the gateway's own `?SESSIONID=…` cannot
+  clobber it. Response is `text/plain` with `CON`/`END` prefixes; gateway session TTL is
+  180 s, so every path ends within three screens (NFR-703).

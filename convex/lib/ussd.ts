@@ -4,7 +4,7 @@ import { WEEKLY_DIGEST_EVENT } from "../rules";
 export const USSD_SCREEN_LIMIT = 182;
 export const USSD_BACK_INPUT = "0";
 export const USSD_SHORT_CODE = "*265*39#";
-const DIAL_STRING = /^\*?\d+(\*\d+)+#?$/;
+const PATH_SEPARATOR = "*";
 const MAX_HISTORY_DAYS = 5;
 
 type Language = Doc<"guardians">["language"];
@@ -30,7 +30,7 @@ export type UssdEffect =
 
 export type UssdReply = { text: string; done: boolean; effect?: UssdEffect };
 
-export type UssdRequest = { sessionId: string; msisdn: string; input: string };
+export type UssdRequest = { sessionId: string; msisdn: string; inputs: string[] };
 
 export const NOTIFICATION_TYPES: { eventType: string; label: Localised }[] = [
   { eventType: "meal.tapped", label: { en: "Meal eaten", sw: "Amekula" } },
@@ -101,22 +101,16 @@ export function parseUssdRequest(params: URLSearchParams): UssdRequest | null {
   if (!sessionId || !msisdn) {
     return null;
   }
-  return { sessionId, msisdn, input: stripDialString(params.get("INPUT") ?? "", params.get("USSDCODE")) };
+  return { sessionId, msisdn, inputs: pathToInputs(params.get("INPUT") ?? "") };
 }
 
-// The first hit carries the dialed code itself in INPUT, not an empty string.
-function stripDialString(input: string, ussdCode: string | null): string {
-  return input === ussdCode || DIAL_STRING.test(input) ? "" : input;
-}
-
-export function advanceInputs(inputs: readonly string[], input: string): string[] {
-  if (input === "") {
-    return [...inputs];
-  }
-  if (input === USSD_BACK_INPUT && inputs.length > 0) {
-    return inputs.slice(0, -1);
-  }
-  return [...inputs, input];
+// INPUT is the cumulative "*"-joined path of everything typed this session;
+// a "0" pops the previous choice so it works as "back" on every screen.
+export function pathToInputs(path: string): string[] {
+  return path
+    .split(PATH_SEPARATOR)
+    .filter(Boolean)
+    .reduce<string[]>((inputs, input) => (input === USSD_BACK_INPUT ? inputs.slice(0, -1) : [...inputs, input]), []);
 }
 
 function con(text: string): UssdReply {

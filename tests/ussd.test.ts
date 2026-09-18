@@ -77,11 +77,7 @@ async function dial(t: Harness, input: string, msisdn = GATEWAY_MSISDN, token = 
 
 async function walk(t: Harness, inputs: string[]): Promise<string> {
   currentSession = `sess-${Date.now()}-${Math.random()}`;
-  let last = "";
-  for (const input of [USSD_SHORT_CODE, ...inputs]) {
-    last = (await dial(t, input)).text;
-  }
-  return last;
+  return (await dial(t, inputs.join("*"))).text;
 }
 
 describe("GET /ussd/<token>", () => {
@@ -98,10 +94,9 @@ describe("GET /ussd/<token>", () => {
     expect(text).toMatch(/^END .*not registered/);
   });
 
-  test("initial dial (INPUT = dialed code, or empty) opens the main menu, matching the guardian by bare 254 spelling", async () => {
+  test("empty INPUT on first dial opens the main menu, matching the guardian by bare 254 spelling", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t);
-    expect((await dial(t, USSD_SHORT_CODE)).text).toMatch(/^CON Dishi\n1\. Status today/);
     expect((await dial(t, "")).text).toMatch(/^CON Dishi\n1\. Status today/);
   });
 
@@ -151,31 +146,25 @@ describe("GET /ussd/<token>", () => {
     expect(await walk(t, ["5", "12"])).toMatch(/^END .*not a valid/);
     expect(await walk(t, ["5", NEW_MSISDN])).toBe("CON Send alerts to +254722000111?\n1. Yes\n2. No");
     expect(await walk(t, ["5", NEW_MSISDN, "1"])).toBe("END Number updated. Alerts now go to +254722000111");
-    const { guardian, event, sessions } = await t.run(async (ctx) => ({
+    const { guardian, event } = await t.run(async (ctx) => ({
       guardian: await ctx.db.get(guardianId),
       event: await ctx.db
         .query("events")
         .withIndex("by_correlationId", (q) => q.eq("correlationId", currentSession))
         .unique(),
-      sessions: await ctx.db
-        .query("ussdSessions")
-        .withIndex("by_sessionId", (q) => q.eq("sessionId", currentSession))
-        .collect(),
     }));
     expect(guardian?.msisdn).toBe("+254722000111");
     expect(event?.type).toBe("guardian.contact_updated");
     expect(event?.payload.previous_msisdn).toBe(GUARDIAN_MSISDN);
-    expect(sessions).toHaveLength(0);
   });
 
-  test("abandoned sessions are swept after an hour", async () => {
+  test("a replayed END screen does not flip the preference back", async () => {
     const t = convexTest(schema, modules);
-    await seedWorld(t);
-    await dial(t, "");
-    vi.setSystemTime(NOW + 61 * 60 * 1000);
-    await t.mutation((await import("../convex/_generated/api")).internal.ussd.sweepStaleSessions, {});
-    const sessions = await t.run(async (ctx) => await ctx.db.query("ussdSessions").collect());
-    expect(sessions).toHaveLength(0);
+    const guardianId = await seedWorld(t);
+    await walk(t, ["4", "1"]);
+    await dial(t, "4*1");
+    const guardian = await t.run(async (ctx) => await ctx.db.get(guardianId));
+    expect(guardian?.optedOutTypes).toEqual(["meal.tapped"]);
   });
 });
 

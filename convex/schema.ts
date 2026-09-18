@@ -193,15 +193,6 @@ export default defineSchema({
     .index("by_collapsedInto", ["collapsedInto"])
     .index("by_school", ["schoolId"]),
 
-  ussdSessions: defineTable({
-    sessionId: v.string(),
-    msisdn: v.string(),
-    inputs: v.array(v.string()),
-    updatedAt: v.number(),
-  })
-    .index("by_sessionId", ["sessionId"])
-    .index("by_updatedAt", ["updatedAt"]),
-
   settings: defineTable({
     key: v.string(),
     value: settingValue,

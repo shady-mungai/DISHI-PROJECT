@@ -92,9 +92,10 @@ http.route({
   }),
 });
 
-// Celcom Africa USSD: GET with SESSIONID, MSISDN, USSDCODE, INPUT (latest entry
-// only). The shared token lives in the path, not the query string, so the
-// gateway appending its own "?..." cannot clobber it. Register
+// Celcom Africa USSD: GET with SESSIONID, MSISDN, USSDCODE, INPUT, where INPUT
+// is the cumulative "*"-joined path ("" → "1" → "1*3"). The shared token lives
+// in the path, not the query string, so the gateway's own "?..." cannot
+// clobber it. Register
 // https://<deployment>.convex.site/ussd/<USSD_TOKEN> as the callback URL.
 http.route({
   pathPrefix: "/ussd/",
