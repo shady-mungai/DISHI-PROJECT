@@ -16,6 +16,7 @@ const MAX_GUARDIANS_PER_STUDENT = 10;
 const ALWAYS = JSON.stringify({ op: "always" });
 const DEFAULT_PRIORITY = 100;
 const MISSED_PRIORITY = 200;
+const WALLET_WARNING_PRIORITY = 150;
 const DEFAULT_DAILY_CAP = 3;
 const DEFAULT_QUIET_START_HOUR = 21;
 const DEFAULT_QUIET_END_HOUR = 6;
@@ -57,6 +58,62 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     templateVersion: 3,
     channel: "sms",
     priority: MISSED_PRIORITY,
+    enabled: true,
+  },
+  {
+    key: "guardian.wallet_topped_up",
+    eventType: "wallet.topped_up",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "KES {{amount}} added for {{child}}. Meal balance KES {{new_balance}}.",
+      sw: "KES {{amount}} imeongezwa kwa {{child}}. Salio la chakula KES {{new_balance}}.",
+    },
+    templateVersion: 1,
+    channel: "sms",
+    priority: DEFAULT_PRIORITY,
+    enabled: true,
+  },
+  {
+    key: "guardian.wallet_low_balance",
+    eventType: "wallet.low_balance",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "{{child}}'s meal balance is low: KES {{balance}}. Please top up.",
+      sw: "Salio la chakula la {{child}} liko chini: KES {{balance}}. Tafadhali ongeza.",
+    },
+    templateVersion: 1,
+    channel: "sms",
+    priority: WALLET_WARNING_PRIORITY,
+    enabled: true,
+  },
+  {
+    key: "guardian.wallet_depleted",
+    eventType: "wallet.depleted",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "{{child}}'s meal balance is used up. Meals continue; please top up.",
+      sw: "Salio la chakula la {{child}} limeisha. Chakula kinaendelea; tafadhali ongeza.",
+    },
+    templateVersion: 1,
+    channel: "sms",
+    priority: MISSED_PRIORITY,
+    enabled: true,
+  },
+  {
+    key: "guardian.wallet_depletion_forecast",
+    eventType: "wallet.depletion_forecast",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "{{child}}'s balance covers {{meals_remaining}} more meals and runs out on {{projected_date}}. Please top up.",
+      sw: "Salio la {{child}} linatosha chakula {{meals_remaining}} zaidi na litaisha {{projected_date}}. Tafadhali ongeza.",
+    },
+    templateVersion: 1,
+    channel: "sms",
+    priority: WALLET_WARNING_PRIORITY,
     enabled: true,
   },
   {
@@ -221,9 +278,18 @@ async function mergeIntoCarrier(ctx: MutationCtx, candidate: Candidate, carrier:
 
 type Recipients = { guardians: Doc<"guardians">[]; vars: Record<string, string> };
 
+function payloadVars(event: Doc<"events">): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(event.payload)
+      .filter((entry): entry is [string, string | number] => typeof entry[1] !== "boolean")
+      .map(([key, value]) => [key, String(value)]),
+  );
+}
+
 // A student event fans out to the linked guardians; a guardian-addressed event
-// (weekly digest) names its recipient and carries its own template vars.
+// (weekly digest) names its recipient. Payload fields are template vars either way.
 async function resolveRecipients(ctx: MutationCtx, event: Doc<"events">): Promise<Recipients> {
+  const vars = payloadVars(event);
   if (event.studentId) {
     const student = await ctx.db.get(event.studentId);
     if (!student) {
@@ -241,11 +307,10 @@ async function resolveRecipients(ctx: MutationCtx, event: Doc<"events">): Promis
         guardians.push(guardian);
       }
     }
-    return { guardians, vars: { child: student.fullName, school: school?.name ?? "", date: event.serviceDate ?? "" } };
+    return { guardians, vars: { ...vars, child: student.fullName, school: school?.name ?? "", date: event.serviceDate ?? "" } };
   }
   const guardianId = typeof event.payload.guardian_id === "string" ? ctx.db.normalizeId("guardians", event.payload.guardian_id) : null;
   const guardian = guardianId ? await ctx.db.get(guardianId) : null;
-  const vars = Object.fromEntries(Object.entries(event.payload).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
   return { guardians: guardian ? [guardian] : [], vars };
 }
 

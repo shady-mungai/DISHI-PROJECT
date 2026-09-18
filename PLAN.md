@@ -209,7 +209,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 **Sprint 2**
 - [x] D6 policy layer + templates + cost instrumentation — typecheck, lint, 63/63 tests green; deployed to dev (rules + notifications tables cleared and re-seeded for the schema change)
 - [x] D7 collapse/merge + digest + 55% assertion — typecheck, lint, build, 68/68 tests green; `tests/collapse.test.ts` asserts 67% reduction (12 triggers → 4 SMS) with both missed-meal alerts composed first; deployed to dev, rules re-seeded (templates v3 + digest rule)
-- [ ] D8 wallet + hysteresis + depletion forecast
+- [x] D8 wallet + hysteresis + depletion forecast — typecheck, lint, build, 76/76 tests green; `tests/wallet.test.ts` asserts a wallet oscillating at the threshold emits exactly one warning (Sprint 2 exit), re-arm above threshold + margin, forecast once per projected date, idempotent top-ups, tap with no wallet still served
 - [ ] D9 USSD
 - [ ] D10 dispatch → confirm → reconcile → payment file
 
@@ -460,3 +460,40 @@ _Appended as we go. Date, decision, why._
   strings as template vars — so opt-out, cap, quiet hours, collapse and dedupe all apply
   to the digest for free. Digest may exceed one segment at real family sizes; segments
   are recorded and billed, not blocked.
+- **2026-09-18 — D8: the wallet is a mirror, and the tap handler debits it.** `wallets`
+  gains `lowBalanceArmed` + `updatedAt` (optional, so D2's rows validate). `ingest.recordTap`
+  calls `wallets.debitForMeal` *after* the tap and expectation are written: no wallet row
+  → serve-and-record, nothing else; otherwise `mealPriceKes` is subtracted, `wallet.debited`
+  appended, and `settleBalance` runs. The mirror may go negative — the external payer owns
+  the truth, and a served meal is a served meal (FR-303, ST-02).
+- **2026-09-18 — D8: hysteresis is one pure function.** `lib/wallet/threshold.ts` →
+  `compareThreshold({ previousBalance, balance, armed, threshold, margin })` returns the
+  new arm state plus `lowBalance` (fires only when armed and ≤ threshold, then disarms)
+  and `depleted` (edge: previous > 0, now ≤ 0). Re-arm only when balance > threshold +
+  `lowBalanceReArmMarginKes`. Every balance movement — debit or top-up — goes through
+  `settleBalance`, so a top-up that only reaches the band between threshold and margin does
+  not re-arm. `wallet.depleted` has no hysteresis (a wallet topped up by one meal and
+  emptied daily is genuinely depleted daily); `ponytail:` ceiling.
+- **2026-09-18 — D8: the forecast is idempotent on its own date, not on arm state.**
+  `projectDepletion` (pure): meals remaining = ⌊balance / price⌋; burn rate = fulfilled ÷
+  possible over the trailing 14 days of `expectations` (no history → 1 meal per school
+  day); the projected date is the `⌊meals / rate⌋`-th upcoming school day from
+  `academicCalendar` (30 rows read, ~4 weeks horizon; beyond that → no forecast).
+  `wallet.depletion_forecast` is emitted when cover ≤ `depletionForecastLeadSchoolDays`
+  (3) with eventId `…:<student>:<date>` — the same date is never sent twice, a new date
+  after a top-up is. With daily meals the first warning lands three school days out (P-04).
+- **2026-09-18 — D8: no payment gateway in scope, so the "adapter" is the mutation
+  contract.** `wallets.applyPayment` (internal) takes `{ externalRef, schoolCode,
+  studentRef, amountKes, newBalanceKes?, occurredAt? }` — that validator is the FR-301
+  contract a future gateway adapter (Daraja etc.) must translate its callback into. It is
+  idempotent on `wallet.topped_up:<externalRef>`; an authoritative `newBalanceKes`
+  overwrites the mirror, otherwise the amount is added; a missing wallet row is created.
+  The mock external payer is `npx convex run wallets:applyPayment '{…}'`. The token-gated
+  `/wallet` webhook sits commented out at the bottom of `http.ts` with its setup steps,
+  and `lib/wallet/payments.ts` keeps the `PaymentAdapter` interface + mock parser for
+  when a gateway is contracted. Four new rules
+  (`wallet_topped_up` 100, `wallet_low_balance` 150, `wallet_depletion_forecast` 150,
+  `wallet_depleted` 200) — `resolveRecipients` now exposes every non-boolean payload
+  field as a template var, so `{{balance}}`, `{{new_balance}}`, `{{meals_remaining}}`,
+  `{{projected_date}}` need no special casing. Dev needs: `seed:seedDemo` (rules) and
+  `settings:seedDefaults` (one new setting).

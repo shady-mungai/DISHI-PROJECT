@@ -148,6 +148,8 @@ export default defineSchema({
   wallets: defineTable({
     studentId: v.id("students"),
     balanceKes: v.number(),
+    lowBalanceArmed: v.optional(v.boolean()),
+    updatedAt: v.optional(v.number()),
   }).index("by_student", ["studentId"]),
 
   rules: defineTable({

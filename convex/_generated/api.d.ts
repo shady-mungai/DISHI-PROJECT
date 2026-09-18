@@ -37,6 +37,8 @@ import type * as lib_roles from "../lib/roles.js";
 import type * as lib_simulation from "../lib/simulation.js";
 import type * as lib_tagUid from "../lib/tagUid.js";
 import type * as lib_template from "../lib/template.js";
+import type * as lib_wallet_payments from "../lib/wallet/payments.js";
+import type * as lib_wallet_threshold from "../lib/wallet/threshold.js";
 import type * as notifications from "../notifications.js";
 import type * as readers from "../readers.js";
 import type * as rules from "../rules.js";
@@ -44,6 +46,7 @@ import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as simulator from "../simulator.js";
 import type * as users from "../users.js";
+import type * as wallets from "../wallets.js";
 
 import type {
   ApiFromModules,
@@ -81,6 +84,8 @@ declare const fullApi: ApiFromModules<{
   "lib/simulation": typeof lib_simulation;
   "lib/tagUid": typeof lib_tagUid;
   "lib/template": typeof lib_template;
+  "lib/wallet/payments": typeof lib_wallet_payments;
+  "lib/wallet/threshold": typeof lib_wallet_threshold;
   notifications: typeof notifications;
   readers: typeof readers;
   rules: typeof rules;
@@ -88,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   settings: typeof settings;
   simulator: typeof simulator;
   users: typeof users;
+  wallets: typeof wallets;
 }>;
 
 /**

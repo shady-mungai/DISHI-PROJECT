@@ -91,4 +91,30 @@ http.route({
   }),
 });
 
+// TODO: payment gateway callback — uncomment when a gateway is contracted.
+// Set PAYMENT_TOKEN (npx convex env set PAYMENT_TOKEN $(openssl rand -hex 32)),
+// give the gateway https://<deployment>.convex.site/wallet?token=<it>, and add
+// a PaymentAdapter beside mockPayerAdapter in lib/wallet/payments.ts that
+// parses the gateway's body into PaymentEvent. Same shared-token gate as /dlr.
+//
+// import { mockPayerAdapter } from "./lib/wallet/payments";
+//
+// http.route({
+//   path: "/wallet",
+//   method: "POST",
+//   handler: httpAction(async (ctx, req) => {
+//     const token = new URL(req.url).searchParams.get("token");
+//     const expectedToken = process.env.PAYMENT_TOKEN;
+//     if (!expectedToken || !token || !timingSafeEqualHex(token, expectedToken)) {
+//       return Response.json({ error: "invalid_token" }, { status: 401 });
+//     }
+//     const payment = mockPayerAdapter.parse(await req.json().catch(() => null));
+//     if (!payment) {
+//       return Response.json({ error: "invalid_body" }, { status: 400 });
+//     }
+//     const result = await ctx.runMutation(internal.wallets.applyPayment, payment);
+//     return Response.json({ result }, { status: result === "unknown_student" ? 404 : 200 });
+//   }),
+// });
+
 export default http;
