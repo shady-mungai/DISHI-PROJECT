@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { hmacSha256Hex, timingSafeEqualHex } from "./lib/hmac";
 import { bodyToRecord, parseDeliveryReport } from "./lib/deliveryReport";
 import { MAX_INGEST_BATCH_EVENTS, parseIngestBody } from "./ingest";
+import { parseUssdRequest } from "./lib/ussd";
 
 const http = httpRouter();
 
@@ -88,6 +89,31 @@ http.route({
 
     const notificationId = await ctx.runMutation(internal.notifications.recordDeliveryReport, report);
     return Response.json({ matched: notificationId !== null }, { status: 200 });
+  }),
+});
+
+// Celcom Africa USSD: GET with SESSIONID, MSISDN, USSDCODE, INPUT (latest entry
+// only). The shared token lives in the path, not the query string, so the
+// gateway appending its own "?..." cannot clobber it. Register
+// https://<deployment>.convex.site/ussd/<USSD_TOKEN> as the callback URL.
+http.route({
+  pathPrefix: "/ussd/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const token = url.pathname.slice("/ussd/".length);
+    const expectedToken = process.env.USSD_TOKEN;
+    if (!expectedToken || !token || !timingSafeEqualHex(token, expectedToken)) {
+      return new Response("END Service unavailable", { status: 401, headers: { "Content-Type": "text/plain" } });
+    }
+
+    const request = parseUssdRequest(url.searchParams);
+    if (!request) {
+      return new Response("END Invalid request", { status: 400, headers: { "Content-Type": "text/plain" } });
+    }
+
+    const reply = await ctx.runMutation(internal.ussd.step, request);
+    return new Response(reply, { status: 200, headers: { "Content-Type": "text/plain" } });
   }),
 });
 

@@ -210,7 +210,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D6 policy layer + templates + cost instrumentation — typecheck, lint, 63/63 tests green; deployed to dev (rules + notifications tables cleared and re-seeded for the schema change)
 - [x] D7 collapse/merge + digest + 55% assertion — typecheck, lint, build, 68/68 tests green; `tests/collapse.test.ts` asserts 67% reduction (12 triggers → 4 SMS) with both missed-meal alerts composed first; deployed to dev, rules re-seeded (templates v3 + digest rule)
 - [x] D8 wallet + hysteresis + depletion forecast — typecheck, lint, build, 76/76 tests green; `tests/wallet.test.ts` asserts a wallet oscillating at the threshold emits exactly one warning (Sprint 2 exit), re-arm above threshold + margin, forecast once per projected date, idempotent top-ups, tap with no wallet still served
-- [ ] D9 USSD
+- [x] D9 USSD — typecheck, lint, 85/85 tests green; `tests/ussd.test.ts` walks every menu path over the real `GET /ussd/<token>` route (P-07 one-session status/balance/history, P-08 opt-out toggle audited, P-09 number change confirmed + audited) and asserts every EN/SW screen is GSM-7 and ≤182 chars. Needs `npx convex env set USSD_TOKEN $(openssl rand -hex 32)` and the callback registered with Celcom
 - [ ] D10 dispatch → confirm → reconcile → payment file
 
 **Sprint 3**
@@ -497,3 +497,19 @@ _Appended as we go. Date, decision, why._
   field as a template var, so `{{balance}}`, `{{new_balance}}`, `{{meals_remaining}}`,
   `{{projected_date}}` need no special casing. Dev needs: `seed:seedDemo` (rules) and
   `settings:seedDefaults` (one new setting).
+- **2026-09-18 — D9: Celcom USSD sends only the latest keypress, so the path lives in
+  `ussdSessions`.** Celcom's callback is a GET with `SESSIONID, MSISDN, USSDCODE, INPUT`
+  where `INPUT` is the last entry only — not the accumulated `1*2*…` string Africa's
+  Talking sends. `ussd.step` (one mutation, one transaction) loads the session row by
+  `SESSIONID`, appends `INPUT` (`0` pops a level — global "back"), renders, applies any
+  effect, and deletes the row on `END`; an hourly cron sweeps rows idle >1h. The renderer
+  `lib/ussd.ts` is pure (`renderUssd(snapshot, inputs)`) with EN+SW copy in one table.
+  Menu: status / balance / last 5 meal days (all from `expectations`, one indexed read
+  per child, picker inserted only for multi-child guardians) / alert toggles (writes
+  `guardians.optedOutTypes`, the same field the policy pipeline reads, so P-08 holds with
+  no further wiring) / change number (validate → confirm → `guardian.contact_updated`
+  with old + new). Guardian lookup tries `+254…`, `254…` and `0…` because enrolment stores
+  the sheet's spelling verbatim. The shared token is a path segment
+  (`/ussd/<USSD_TOKEN>`), not a query param, so the gateway appending `?SESSIONID=…`
+  cannot clobber it. Response is `text/plain` with `CON`/`END` prefixes — confirm
+  against Celcom's spec on first real dial; only the two prefix strings would change.

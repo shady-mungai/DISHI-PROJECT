@@ -21,6 +21,10 @@ function gsm7Length(text: string): number | null {
   return length;
 }
 
+export function isGsm7(text: string): boolean {
+  return gsm7Length(text) !== null;
+}
+
 export function smsSegments(text: string): number {
   const gsmLength = gsm7Length(text);
   if (gsmLength !== null) {

@@ -18,6 +18,8 @@ crons.cron(
   {},
 );
 
+crons.hourly("sweep abandoned USSD sessions", { minuteUTC: 15 }, internal.ussd.sweepStaleSessions, {});
+
 crons.cron("weekly guardian digest", WEEKLY_DIGEST_UTC_CRON, internal.digest.sendWeeklyDigest, {});
 
 export default crons;
