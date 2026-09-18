@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Id } from "../convex/_generated/dataModel";
 import { isGsm7 } from "../convex/lib/gsm7";
-import { NOTIFICATION_TYPES, renderUssd, USSD_SCREEN_LIMIT } from "../convex/lib/ussd";
+import { NOTIFICATION_TYPES, renderUssd, USSD_SCREEN_LIMIT, USSD_SHORT_CODE } from "../convex/lib/ussd";
 import type { UssdGuardian } from "../convex/lib/ussd";
 import schema from "../convex/schema";
 
@@ -70,7 +70,7 @@ async function seedWorld(t: Harness, children = 1): Promise<Id<"guardians">> {
 }
 
 async function dial(t: Harness, input: string, msisdn = GATEWAY_MSISDN, token = TOKEN): Promise<{ status: number; text: string }> {
-  const params = new URLSearchParams({ SESSIONID: currentSession, MSISDN: msisdn, USSDCODE: "*384*123#", INPUT: input });
+  const params = new URLSearchParams({ SESSIONID: currentSession, MSISDN: msisdn, USSDCODE: USSD_SHORT_CODE, INPUT: input });
   const res = await t.fetch(`/ussd/${token}?${params}`, { method: "GET" });
   return { status: res.status, text: await res.text() };
 }
@@ -78,7 +78,7 @@ async function dial(t: Harness, input: string, msisdn = GATEWAY_MSISDN, token = 
 async function walk(t: Harness, inputs: string[]): Promise<string> {
   currentSession = `sess-${Date.now()}-${Math.random()}`;
   let last = "";
-  for (const input of ["", ...inputs]) {
+  for (const input of [USSD_SHORT_CODE, ...inputs]) {
     last = (await dial(t, input)).text;
   }
   return last;
@@ -98,11 +98,11 @@ describe("GET /ussd/<token>", () => {
     expect(text).toMatch(/^END .*not registered/);
   });
 
-  test("initial dial opens the main menu, matching the guardian by bare 254 spelling", async () => {
+  test("initial dial (INPUT = dialed code, or empty) opens the main menu, matching the guardian by bare 254 spelling", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t);
-    const { text } = await dial(t, "");
-    expect(text).toMatch(/^CON Dishi\n1\. Status today/);
+    expect((await dial(t, USSD_SHORT_CODE)).text).toMatch(/^CON Dishi\n1\. Status today/);
+    expect((await dial(t, "")).text).toMatch(/^CON Dishi\n1\. Status today/);
   });
 
   test("P-07: status, balance and last five meal days each resolve in one session", async () => {

@@ -3,6 +3,8 @@ import { WEEKLY_DIGEST_EVENT } from "../rules";
 
 export const USSD_SCREEN_LIMIT = 182;
 export const USSD_BACK_INPUT = "0";
+export const USSD_SHORT_CODE = "*265*39#";
+const DIAL_STRING = /^\*?\d+(\*\d+)+#?$/;
 const MAX_HISTORY_DAYS = 5;
 
 type Language = Doc<"guardians">["language"];
@@ -53,7 +55,7 @@ const COPY = {
     sw: "Nambari hii haijasajiliwa. Uliza shule iiunganishe.",
   },
   noChildren: { en: "No child is linked to this number.", sw: "Hakuna mtoto aliyeunganishwa na nambari hii." },
-  invalid: { en: "Invalid option. Dial again.", sw: "Chaguo si sahihi. Piga tena." },
+  invalid: { en: `Invalid option. Dial ${USSD_SHORT_CODE} again.`, sw: `Chaguo si sahihi. Piga ${USSD_SHORT_CODE} tena.` },
   whichChild: { en: "Which child?", sw: "Mtoto gani?" },
   ate: { en: "ate today.", sw: "amekula leo." },
   notYet: { en: "has not eaten yet today.", sw: "bado hajakula leo." },
@@ -99,7 +101,12 @@ export function parseUssdRequest(params: URLSearchParams): UssdRequest | null {
   if (!sessionId || !msisdn) {
     return null;
   }
-  return { sessionId, msisdn, input: params.get("INPUT") ?? "" };
+  return { sessionId, msisdn, input: stripDialString(params.get("INPUT") ?? "", params.get("USSDCODE")) };
+}
+
+// The first hit carries the dialed code itself in INPUT, not an empty string.
+function stripDialString(input: string, ussdCode: string | null): string {
+  return input === ussdCode || DIAL_STRING.test(input) ? "" : input;
 }
 
 export function advanceInputs(inputs: readonly string[], input: string): string[] {
