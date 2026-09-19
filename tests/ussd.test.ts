@@ -94,10 +94,31 @@ describe("GET /ussd/<token>", () => {
     expect(text).toMatch(/^END .*not registered/);
   });
 
-  test("empty INPUT on first dial opens the main menu, matching the guardian by bare 254 spelling", async () => {
+  test("first dial opens the main menu whether INPUT is empty or the dialed code, matching the guardian by bare 254 spelling", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t);
-    expect((await dial(t, "")).text).toMatch(/^CON Dishi\n1\. Status today/);
+    for (const input of ["", USSD_SHORT_CODE, "265*39#", "*265*39"]) {
+      expect((await dial(t, input)).text, `INPUT=${input}`).toMatch(/^CON Dishi\n1\. Status today/);
+    }
+  });
+
+  test("the dialed code as a path prefix is ignored when routing", async () => {
+    const t = convexTest(schema, modules);
+    await seedWorld(t);
+    expect((await dial(t, `${USSD_SHORT_CODE}*2`)).text).toBe("END Amina balance: KES 120");
+    expect((await dial(t, `${USSD_SHORT_CODE}2`)).text).toBe("END Amina balance: KES 120");
+    expect((await dial(t, "*265*39*2#")).text).toBe("END Amina balance: KES 120");
+  });
+
+  test("one session walks main menu -> notifications -> toggle as CON, CON, END", async () => {
+    const t = convexTest(schema, modules);
+    await seedWorld(t);
+    currentSession = "sess-walk";
+    const prefixes: string[] = [];
+    for (const input of ["", "4", "4*1"]) {
+      prefixes.push((await dial(t, input)).text.slice(0, 3));
+    }
+    expect(prefixes).toEqual(["CON", "CON", "END"]);
   });
 
   test("P-07: status, balance and last five meal days each resolve in one session", async () => {

@@ -5,6 +5,9 @@ export const USSD_SCREEN_LIMIT = 182;
 export const USSD_BACK_INPUT = "0";
 export const USSD_SHORT_CODE = "*265*39#";
 const PATH_SEPARATOR = "*";
+const DIAL_STRING_DIGITS = USSD_SHORT_CODE.replace(/^\*|#$/g, "").replace(/\*/g, "\\*");
+const LEADING_DIAL_STRING = new RegExp(`^\\*?${DIAL_STRING_DIGITS}#?\\*?`);
+const TRAILING_HASH = /#$/;
 const MAX_HISTORY_DAYS = 5;
 
 type Language = Doc<"guardians">["language"];
@@ -101,13 +104,21 @@ export function parseUssdRequest(params: URLSearchParams): UssdRequest | null {
   if (!sessionId || !msisdn) {
     return null;
   }
-  return { sessionId, msisdn, inputs: pathToInputs(params.get("INPUT") ?? "") };
+  return { sessionId, msisdn, inputs: pathToInputs(params.get("INPUT") ?? "", params.get("USSDCODE")) };
+}
+
+// Some hits carry the dialed code itself in INPUT ("*265*39#", "*265*39#*4",
+// or the extension form "*265*39*4#"); it is not a menu choice, so it is
+// dropped before routing.
+function stripDialString(path: string, ussdCode: string | null): string {
+  const withoutCode = ussdCode && path.startsWith(ussdCode) ? path.slice(ussdCode.length) : path;
+  return withoutCode.replace(LEADING_DIAL_STRING, "").replace(TRAILING_HASH, "");
 }
 
 // INPUT is the cumulative "*"-joined path of everything typed this session;
 // a "0" pops the previous choice so it works as "back" on every screen.
-export function pathToInputs(path: string): string[] {
-  return path
+export function pathToInputs(path: string, ussdCode: string | null = null): string[] {
+  return stripDialString(path, ussdCode)
     .split(PATH_SEPARATOR)
     .filter(Boolean)
     .reduce<string[]>((inputs, input) => (input === USSD_BACK_INPUT ? inputs.slice(0, -1) : [...inputs, input]), []);
