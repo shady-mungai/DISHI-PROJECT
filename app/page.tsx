@@ -4,7 +4,7 @@ const LINK_CLASS = "rounded border border-zinc-300 px-4 py-3 text-lg hover:bg-zi
 
 const ROUTES = [
   { href: "/enrolment/import", label: "Enrolment import" },
-  { href: "/service-day", label: "Service day" },
+  { href: "/service-day", label: "School dashboard" },
   { href: "/reader", label: "Tap reader" },
   { href: "/deliveries", label: "Deliveries" },
 ] as const;

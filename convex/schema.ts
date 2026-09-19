@@ -44,6 +44,13 @@ export const deliveryStatus = v.union(
   v.literal("disputed"),
 );
 
+export const overrideReason = v.union(
+  v.literal("lost_tag"),
+  v.literal("forgotten_tag"),
+  v.literal("damaged_tag"),
+  v.literal("reader_down"),
+);
+
 export const forecastConfidence = v.union(v.literal("low"), v.literal("medium"), v.literal("high"));
 
 export default defineSchema({
@@ -140,7 +147,8 @@ export default defineSchema({
     .index("by_type_occurredAt", ["type", "occurredAt"])
     .index("by_school_occurredAt", ["schoolId", "occurredAt"])
     .index("by_correlationId", ["correlationId"])
-    .index("by_student_serviceDate_type", ["studentId", "serviceDate", "type"]),
+    .index("by_student_serviceDate_type", ["studentId", "serviceDate", "type"])
+    .index("by_school_type_serviceDate", ["schoolId", "type", "serviceDate"]),
 
   expectations: defineTable({
     schoolId: v.id("schools"),

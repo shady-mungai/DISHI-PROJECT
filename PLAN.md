@@ -214,7 +214,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D10 dispatch → confirm → reconcile → payment file — typecheck, lint, build, 95/95 tests green; `tests/supplyChain.test.ts` asserts a dispatch with no school confirmation produces no payment-file line (Sprint 2 exit), wrong-code rejection + replay no-op, the unconfirmed sweep, the paged reconciliation join and once-per-day forecast; deployed to dev, settings re-seeded (2 new). Needs `npx convex run users:assignRole` for a supplier/county login
 
 **Sprint 3**
-- [ ] D11 school dashboard
+- [x] D11 school dashboard — typecheck, lint, build, 99/99 tests green; `tests/schoolDashboard.test.ts` asserts an override is one countable meal with reason + staff id (a later tap is a duplicate), the tap-first case, own override rate, deactivation revoking the tag and dropping the child from tomorrow's expectations, and the silent-reader flag firing once per day; deployed to dev, settings + rules re-seeded (rules table was 4 short — the D8 wallet rules had never landed on dev)
 - [ ] D12 county dashboard
 - [ ] D13 supplier dashboard + stalled service
 - [ ] D14 admin console + dry-run replay
@@ -560,3 +560,41 @@ _Appended as we go. Date, decision, why._
   `SCHOOL_DAY = 2026-09-18` (same failure mode as the D8 note) — now the first Friday ≥ 7 days
   out with its Mon–Fri derived, so the digest week still lines up. `tests/ussd.test.ts` used
   a `/s` regex flag the ES2017 root target rejects at typecheck — `[\s\S]` instead.
+- **2026-09-19 — D11: `/service-day` is the school dashboard.** It already had the live
+  count; it now adds tomorrow's forecast, today's deliveries (confirm/dispute stays on
+  `/deliveries`), a staff override form with the school's own rate, reader health and
+  roster corrections as three small components under `app/service-day/`. No new route.
+- **2026-09-19 — D11: an override is a meal, so it goes through the meal path.**
+  `overrides.serveByOverride` records `meal.override_served` (`student_id`, `reason_code`,
+  `staff_id` = the `users` row, NFR-405), fulfils the expectation and debits the wallet
+  exactly like a tap. ST-04 is enforced by one shared lookup, `mealServedOn` (tap *or*
+  override today), used by both the override and `ingest.recordTap` — so an override
+  followed by a tap is a `second_tap_same_day` duplicate, and vice versa. The event id is
+  `meal.override_served:<student>:<date>`, one per day by construction. A new rule
+  `guardian.meal_override_served` reuses the tapped template so the guardian still hears.
+  Reason codes are a closed validator (`lost_tag | forgotten_tag | damaged_tag | reader_down`).
+- **2026-09-19 — D11: override rate = overrides ÷ (taps + overrides) over the trailing 14
+  days**, via a new `events.by_school_type_serviceDate` index (two capped range reads; D12
+  reuses `overrideRate` for the county ranking). Tolerance is the existing
+  `overrideRateTolerancePct` setting; the dashboard turns the line red above it.
+- **2026-09-19 — D11: roster corrections need no "effective from" field.** Materialisation
+  reads active students, so `roster.deactivate` (status + reason + tag revoked as
+  `student_left` + `student.deactivated` event) leaves today's expectation row alone and
+  the child is simply absent from tomorrow's page. "Student joined" is `roster.join` →
+  the same `commitRosterRows` as the PDF import with one row, so `student.enrolled` and
+  guardian linking come free; tag reissue stays on `/reader` (`assignTag` now also appends
+  `student.tag_assigned`).
+- **2026-09-19 — D11: reader silence is decided from `lastSeenAt`, in two places on
+  purpose.** The dashboard query returns the fleet plus `silentAfterMs`
+  (`readerSilentHours`, new setting, 20 h) and the page compares against its own clock, so
+  the query has no wall-clock read and stays cacheable. The cron `0 9 * * *` (12:00
+  Nairobi, 30 min before service) runs `readers.flagSilentReaders`, which appends
+  `device.heartbeat_missed` once per device per day for readers that have synced before
+  but not within the window; never-seen devices are unprovisioned hardware, not failures.
+  No notification rule listens yet — the school sees it on the dashboard, the admin
+  surface is D14.
+- **2026-09-19 — Two more clock-dependent tests.** `tests/rules.test.ts` (daily cap) and
+  `tests/collapse.test.ts` (new window) ran the policy layer on the real clock and failed
+  after 21:00 Nairobi because quiet hours deferred the sends. Both files now pin `Date` to
+  the service start in `beforeEach` and `runScheduled` keeps that instant while faking
+  timers — the same idea as the D8 fix, applied to time of day rather than the date.

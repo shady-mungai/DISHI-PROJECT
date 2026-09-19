@@ -47,6 +47,20 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     enabled: true,
   },
   {
+    key: "guardian.meal_override_served",
+    eventType: "meal.override_served",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "{{child}} had lunch at {{school}} today ({{date}}).",
+      sw: "{{child}} amekula chakula cha mchana {{school}} leo ({{date}}).",
+    },
+    templateVersion: 1,
+    channel: "sms",
+    priority: DEFAULT_PRIORITY,
+    enabled: true,
+  },
+  {
     key: "guardian.meal_missed",
     eventType: "meal.missed",
     predicate: ALWAYS,

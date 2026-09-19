@@ -2,9 +2,13 @@
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { toServiceDate } from "@/convex/lib/dates";
+import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { SchoolGate } from "@/app/components/SchoolGate";
+import { OverridePanel } from "@/app/service-day/OverridePanel";
+import { ReaderHealth } from "@/app/service-day/ReaderHealth";
+import { RosterPanel } from "@/app/service-day/RosterPanel";
 import { useAction, useMutation, useQuery } from "convex/react";
+import Link from "next/link";
 import { useState } from "react";
 
 const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
@@ -26,6 +30,8 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   const [message, setMessage] = useState<string | null>(null);
 
   const summary = useQuery(api.expectations.daySummary, { schoolId, serviceDate });
+  const forecast = useQuery(api.deliveries.forecastFor, { schoolId, serviceDate: addDays(serviceDate, 1) });
+  const deliveries = useQuery(api.deliveries.listForSchoolDay, { schoolId, serviceDate });
   const notifications = useQuery(api.notifications.recentForSchool, { schoolId });
   const spend = useQuery(api.notifications.spendByRuleToday, { schoolId });
   const runExpectations = useMutation(api.expectations.runExpectationsNow);
@@ -76,11 +82,30 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
       <p className="text-5xl font-semibold">
         {summary?.fulfilled ?? "…"} <span className="text-2xl text-zinc-500">/ {expected ?? "…"} served</span>
       </p>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Stat label="Pending" value={summary?.pending} />
         <Stat label="Served" value={summary?.fulfilled} />
         <Stat label="Missed" value={summary?.missed} />
+        <Stat label={`Forecast ${addDays(serviceDate, 1)}`} value={forecast ? `${forecast.portions} (${forecast.confidence})` : "—"} />
       </div>
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold">
+          Deliveries today · <Link href="/deliveries" className="underline">confirm or dispute</Link>
+        </h2>
+        {deliveries?.length === 0 && <p className="text-sm text-zinc-500">None declared.</p>}
+        <ul className="flex flex-col gap-1 text-sm">
+          {deliveries?.map((delivery) => (
+            <li key={delivery._id} className={NOTIFICATION_CLASS}>
+              <span className="font-mono">{delivery.docketRef}</span>
+              <span className="flex-1">{delivery.portions} portions</span>
+              <span className="text-zinc-500">{delivery.status}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <OverridePanel schoolId={schoolId} serviceDate={serviceDate} />
+      <ReaderHealth schoolId={schoolId} />
+      <RosterPanel schoolId={schoolId} />
       <div className="flex gap-3">
         <button type="button" disabled={busy} className={BUTTON_CLASS} onClick={() => void trigger(describeExpectations)}>
           Run expectations now
@@ -153,7 +178,7 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
   );
 }
 
-function Stat({ label, value }: { label: string; value: number | undefined }) {
+function Stat({ label, value }: { label: string; value: number | string | undefined }) {
   return (
     <div className={STAT_CLASS}>
       <span className="text-sm text-zinc-500">{label}</span>

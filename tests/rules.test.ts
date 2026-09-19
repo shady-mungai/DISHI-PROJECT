@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { seedRules } from "../convex/rules";
@@ -69,12 +69,22 @@ async function notifications(t: Harness) {
   return await t.run(async (ctx) => await ctx.db.query("notifications").collect());
 }
 
+// The policy layer reads the clock (quiet hours, cap day, collapse window),
+// so every test runs at service start rather than whenever CI happens to run.
+beforeEach(() => {
+  vi.useFakeTimers({ now: SERVICE_START_AT, toFake: ["Date"] });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 async function runScheduled(t: Harness): Promise<void> {
-  vi.useFakeTimers();
+  vi.useFakeTimers({ now: Date.now() });
   try {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
   } finally {
-    vi.useRealTimers();
+    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
   }
 }
 

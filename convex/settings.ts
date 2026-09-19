@@ -26,6 +26,7 @@ export const SettingKey = {
   SmsCostPerSegmentKes: "smsCostPerSegmentKes",
   DeliveryConfirmWindowMinutes: "deliveryConfirmWindowMinutes",
   SupplierPortionRateKes: "supplierPortionRateKes",
+  ReaderSilentHours: "readerSilentHours",
 } as const;
 
 export const DEMO_SETTINGS: ReadonlyArray<{
@@ -52,6 +53,7 @@ export const DEMO_SETTINGS: ReadonlyArray<{
   { key: SettingKey.SmsCostPerSegmentKes, value: 0.8, description: "Gateway price per SMS segment, for spend reporting" },
   { key: SettingKey.DeliveryConfirmWindowMinutes, value: 120, description: "Minutes after dispatch before a delivery is swept as unconfirmed" },
   { key: SettingKey.SupplierPortionRateKes, value: 25, description: "Amount paid to the supplier per confirmed portion" },
+  { key: SettingKey.ReaderSilentHours, value: 20, description: "Hours without a reader sync before it is flagged silent" },
 ];
 
 export async function readNumberSetting(ctx: QueryCtx, key: string, fallback: number): Promise<number> {
