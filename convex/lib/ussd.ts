@@ -99,6 +99,8 @@ export function msisdnVariants(raw: string): string[] {
 }
 
 export function parseUssdRequest(params: URLSearchParams): UssdRequest | null {
+  // TODO: remove once the gateway's INPUT shape is confirmed
+  console.log("ussd hit", JSON.stringify({ INPUT: params.get("INPUT"), USSDCODE: params.get("USSDCODE"), keys: [...params.keys()] }));
   const sessionId = params.get("SESSIONID");
   const msisdn = params.get("MSISDN");
   if (!sessionId || !msisdn) {
@@ -166,14 +168,20 @@ function historyLine(language: Language, child: UssdChild): string {
   return `${child.name}:\n${lines.join("\n")}`;
 }
 
+// Answers stay on screen as CON so the phone does not dismiss them at once;
+// the guardian presses 0 for the menu or the handset's Cancel to leave.
+function answerScreen(language: Language, text: string): UssdReply {
+  return con(`${text}\n${COPY.back[language]}`);
+}
+
 function childAnswer(language: Language, option: string, child: UssdChild): UssdReply {
   if (option === MainOption.Status) {
-    return end(todayLine(language, child));
+    return answerScreen(language, todayLine(language, child));
   }
   if (option === MainOption.Balance) {
-    return end(`${child.name} ${COPY.balance[language]} ${child.balanceKes}`);
+    return answerScreen(language, `${child.name} ${COPY.balance[language]} ${child.balanceKes}`);
   }
-  return end(historyLine(language, child));
+  return answerScreen(language, historyLine(language, child));
 }
 
 function childBranch(guardian: UssdGuardian, inputs: readonly string[]): UssdReply {

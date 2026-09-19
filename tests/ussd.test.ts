@@ -105,9 +105,9 @@ describe("GET /ussd/<token>", () => {
   test("the dialed code as a path prefix is ignored when routing", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t);
-    expect((await dial(t, `${USSD_SHORT_CODE}*2`)).text).toBe("END Amina balance: KES 120");
-    expect((await dial(t, `${USSD_SHORT_CODE}2`)).text).toBe("END Amina balance: KES 120");
-    expect((await dial(t, "*265*39*2#")).text).toBe("END Amina balance: KES 120");
+    expect((await dial(t, `${USSD_SHORT_CODE}*2`)).text).toBe("CON Amina balance: KES 120\n0. Back");
+    expect((await dial(t, `${USSD_SHORT_CODE}2`)).text).toBe("CON Amina balance: KES 120\n0. Back");
+    expect((await dial(t, "*265*39*2#")).text).toBe("CON Amina balance: KES 120\n0. Back");
   });
 
   test("one session walks main menu -> notifications -> toggle as CON, CON, END", async () => {
@@ -121,20 +121,26 @@ describe("GET /ussd/<token>", () => {
     expect(prefixes).toEqual(["CON", "CON", "END"]);
   });
 
+  test("an answer screen stays open and 0 returns to the main menu", async () => {
+    const t = convexTest(schema, modules);
+    await seedWorld(t);
+    expect(await walk(t, ["2", "0"])).toMatch(/^CON Dishi/);
+  });
+
   test("P-07: status, balance and last five meal days each resolve in one session", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t);
-    expect(await walk(t, ["1"])).toBe("END Amina has not eaten yet today.");
-    expect(await walk(t, ["2"])).toBe("END Amina balance: KES 120");
+    expect(await walk(t, ["1"])).toBe("CON Amina has not eaten yet today.\n0. Back");
+    expect(await walk(t, ["2"])).toBe("CON Amina balance: KES 120\n0. Back");
     const history = await walk(t, ["3"]);
-    expect(history).toBe("END Amina:\n17/09 missed\n16/09 ate\n15/09 ate\n14/09 ate\n11/09 missed");
+    expect(history).toBe("CON Amina:\n17/09 missed\n16/09 ate\n15/09 ate\n14/09 ate\n11/09 missed\n0. Back");
   });
 
   test("a guardian with two children gets a picker, then the answer", async () => {
     const t = convexTest(schema, modules);
     await seedWorld(t, 2);
     expect(await walk(t, ["2"])).toBe("CON Which child?\n1. Amina\n2. Brian");
-    expect(await walk(t, ["2", "2"])).toBe("END Brian balance: KES 120");
+    expect(await walk(t, ["2", "2"])).toBe("CON Brian balance: KES 120\n0. Back");
   });
 
   test("P-08: toggling an alert flips optedOutTypes and writes an audited event", async () => {
