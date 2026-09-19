@@ -58,7 +58,7 @@ async function resolveServiceWindow(ctx: QueryCtx, serviceStartAt: number): Prom
   };
 }
 
-async function isSchoolDay(ctx: QueryCtx, serviceDate: string): Promise<boolean> {
+export async function isSchoolDay(ctx: QueryCtx, serviceDate: string): Promise<boolean> {
   const day = await ctx.db
     .query("academicCalendar")
     .withIndex("by_serviceDate", (q) => q.eq("serviceDate", serviceDate))
@@ -318,24 +318,28 @@ export const runSweepNow = mutation({
 
 // ponytail: counts are computed on read, capped at SUMMARY_READ_CAP rows per
 // status; move to @convex-dev/aggregate once a school exceeds that.
+export async function countExpectations(
+  ctx: QueryCtx,
+  key: { schoolId: Id<"schools">; serviceDate: string; status: Doc<"expectations">["status"] },
+): Promise<number> {
+  const rows = await ctx.db
+    .query("expectations")
+    .withIndex("by_school_serviceDate_status", (q) =>
+      q.eq("schoolId", key.schoolId).eq("serviceDate", key.serviceDate).eq("status", key.status),
+    )
+    .take(SUMMARY_READ_CAP);
+  return rows.length;
+}
+
 export const daySummary = query({
   args: { schoolId: v.id("schools"), serviceDate: v.string() },
   returns: v.object({ pending: v.number(), fulfilled: v.number(), missed: v.number() }),
   handler: async (ctx, args) => {
     await requireSchoolScope(ctx, args.schoolId);
-    const countStatus = async (status: Doc<"expectations">["status"]): Promise<number> => {
-      const rows = await ctx.db
-        .query("expectations")
-        .withIndex("by_school_serviceDate_status", (q) =>
-          q.eq("schoolId", args.schoolId).eq("serviceDate", args.serviceDate).eq("status", status),
-        )
-        .take(SUMMARY_READ_CAP);
-      return rows.length;
-    };
     return {
-      pending: await countStatus("pending"),
-      fulfilled: await countStatus("fulfilled"),
-      missed: await countStatus("missed"),
+      pending: await countExpectations(ctx, { ...args, status: "pending" }),
+      fulfilled: await countExpectations(ctx, { ...args, status: "fulfilled" }),
+      missed: await countExpectations(ctx, { ...args, status: "missed" }),
     };
   },
 });

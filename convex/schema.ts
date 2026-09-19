@@ -37,6 +37,15 @@ export const notificationChannel = v.literal("sms");
 
 export const ruleAudience = v.literal("guardian");
 
+export const deliveryStatus = v.union(
+  v.literal("declared"),
+  v.literal("unconfirmed"),
+  v.literal("confirmed"),
+  v.literal("disputed"),
+);
+
+export const forecastConfidence = v.union(v.literal("low"), v.literal("medium"), v.literal("high"));
+
 export default defineSchema({
   users: defineTable({
     authUserId: v.string(),
@@ -192,6 +201,45 @@ export default defineSchema({
     .index("by_providerMessageId", ["providerMessageId"])
     .index("by_collapsedInto", ["collapsedInto"])
     .index("by_school", ["schoolId"]),
+
+  deliveries: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    portions: v.number(),
+    vehicle: v.optional(v.string()),
+    docketRef: v.string(),
+    dispatchedAt: v.number(),
+    declaredBy: v.id("users"),
+    confirmCodeHash: v.string(),
+    expectedConfirmBy: v.number(),
+    status: deliveryStatus,
+    portionsReceived: v.optional(v.number()),
+    resolvedBy: v.optional(v.id("users")),
+    resolvedAt: v.optional(v.number()),
+    note: v.optional(v.string()),
+  })
+    .index("by_school_serviceDate", ["schoolId", "serviceDate"])
+    .index("by_school_confirmCodeHash", ["schoolId", "confirmCodeHash"])
+    .index("by_status_serviceDate", ["status", "serviceDate"]),
+
+  forecasts: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    portions: v.number(),
+    confidence: forecastConfidence,
+    computedAt: v.number(),
+  }).index("by_school_serviceDate", ["schoolId", "serviceDate"]),
+
+  reconciliations: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    dispatched: v.number(),
+    confirmed: v.number(),
+    consumed: v.number(),
+    variance: v.number(),
+    variancePct: v.number(),
+    computedAt: v.number(),
+  }).index("by_school_serviceDate", ["schoolId", "serviceDate"]),
 
   settings: defineTable({
     key: v.string(),

@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as channels from "../channels.js";
 import type * as crons from "../crons.js";
+import type * as deliveries from "../deliveries.js";
 import type * as devices from "../devices.js";
 import type * as digest from "../digest.js";
 import type * as enrolment from "../enrolment.js";
@@ -35,6 +36,7 @@ import type * as lib_policy from "../lib/policy.js";
 import type * as lib_predicate from "../lib/predicate.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_simulation from "../lib/simulation.js";
+import type * as lib_supply from "../lib/supply.js";
 import type * as lib_tagUid from "../lib/tagUid.js";
 import type * as lib_template from "../lib/template.js";
 import type * as lib_ussd from "../lib/ussd.js";
@@ -60,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   channels: typeof channels;
   crons: typeof crons;
+  deliveries: typeof deliveries;
   devices: typeof devices;
   digest: typeof digest;
   enrolment: typeof enrolment;
@@ -84,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   "lib/predicate": typeof lib_predicate;
   "lib/roles": typeof lib_roles;
   "lib/simulation": typeof lib_simulation;
+  "lib/supply": typeof lib_supply;
   "lib/tagUid": typeof lib_tagUid;
   "lib/template": typeof lib_template;
   "lib/ussd": typeof lib_ussd;

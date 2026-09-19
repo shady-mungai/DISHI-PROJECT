@@ -211,7 +211,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D7 collapse/merge + digest + 55% assertion — typecheck, lint, build, 68/68 tests green; `tests/collapse.test.ts` asserts 67% reduction (12 triggers → 4 SMS) with both missed-meal alerts composed first; deployed to dev, rules re-seeded (templates v3 + digest rule)
 - [x] D8 wallet + hysteresis + depletion forecast — typecheck, lint, build, 76/76 tests green; `tests/wallet.test.ts` asserts a wallet oscillating at the threshold emits exactly one warning (Sprint 2 exit), re-arm above threshold + margin, forecast once per projected date, idempotent top-ups, tap with no wallet still served
 - [x] D9 USSD — typecheck, lint, 85/85 tests green; `tests/ussd.test.ts` walks every menu path over the real `GET /ussd/<token>` route (P-07 one-session status/balance/history, P-08 opt-out toggle audited, P-09 number change confirmed + audited) and asserts every EN/SW screen is GSM-7 and ≤182 chars. Needs `npx convex env set USSD_TOKEN $(openssl rand -hex 32)` and the callback registered with Celcom
-- [ ] D10 dispatch → confirm → reconcile → payment file
+- [x] D10 dispatch → confirm → reconcile → payment file — typecheck, lint, build, 95/95 tests green; `tests/supplyChain.test.ts` asserts a dispatch with no school confirmation produces no payment-file line (Sprint 2 exit), wrong-code rejection + replay no-op, the unconfirmed sweep, the paged reconciliation join and once-per-day forecast; deployed to dev, settings re-seeded (2 new). Needs `npx convex run users:assignRole` for a supplier/county login
 
 **Sprint 3**
 - [ ] D11 school dashboard
@@ -513,3 +513,50 @@ _Appended as we go. Date, decision, why._
   (`/ussd/<USSD_TOKEN>`), not a query param, so the gateway's own `?SESSIONID=…` cannot
   clobber it. Response is `text/plain` with `CON`/`END` prefixes; gateway session TTL is
   180 s, so every path ends within three screens (NFR-703).
+- **2026-09-19 — D10: the one-time code is minted at declaration and only its hash is
+  stored.** `deliveries.declare` (supplier/admin) returns a 6-digit code once; the row keeps
+  `sha256(schoolId:code)` indexed `by_school_confirmCodeHash`, so the school-scoped lookup on
+  `/deliveries` cannot match another school's docket. Confirm/dispute is one mutation
+  (`resolve`, school/admin, `action: confirm | dispute`) from the same page on a phone —
+  SC-02's "without a laptop" is the web form, not a USSD path. A replayed resolution of an
+  already-resolved delivery returns the existing status and writes nothing.
+- **2026-09-19 — D10: the unconfirmed sweep is per delivery, scheduler-native.** Declaration
+  does `runAt(expectedConfirmBy, sweepUnconfirmed, { deliveryId })` with
+  `deliveryConfirmWindowMinutes` (new setting, 120) — same shape as the meal sweep; a
+  `declared` row at that time becomes `unconfirmed` + `delivery.unconfirmed`. A late
+  confirmation still lands (`unconfirmed → confirmed`), so the payment file is never
+  starved by a slow cook.
+- **2026-09-19 — D10: forecast is one pure function, one row per school-day.**
+  `lib/supply.ts#forecastPortions`: same-weekday fulfilment rate over the trailing 14 days
+  of `expectations` (≥3 samples → `high`), else any-day rate (`medium`), else the active
+  roster (`low`), × active students, rounded up. `forecasts` is upserted;
+  `demand.forecast_published` fires on first publication only, a recompute refreshes the row.
+  Cron `0 18 * * *` (21:00 Nairobi) targets tomorrow; "Run forecast now" on `/deliveries`
+  targets the day after the picked date. Not-a-school-day → no row.
+- **2026-09-19 — D10: reconciliation is the paged cross-stream join, variance = confirmed −
+  consumed.** `reconcilePageFor` pages fulfilled `expectations` for the school-day with a
+  cursor, chains via `runAfter(0, …)`, and joins the (small) `deliveries` stream on the last
+  page: dispatched = Σ portions, confirmed = Σ `portionsReceived` of confirmed rows,
+  consumed = fulfilled count, `variancePct` relative to confirmed. `reconciliations` is
+  upserted and every computation appends `reconciliation.daily_computed` (eventId carries
+  `computedAt`). Cron `0 15 * * *` (18:00 Nairobi) for today; manual trigger on `/deliveries`.
+  Variance streaks and `variance_exceeded` are D12.
+- **2026-09-19 — D10: the payment file is a query over `deliveries.by_status_serviceDate =
+  confirmed`.** Nothing else can add a line (SU-07, FR-608); amount = `portionsReceived` ×
+  `supplierPortionRateKes` (new setting, 25). `toPaymentCsv` is pure; the county/admin view
+  on `/deliveries` downloads it. Format is our own — the county finance system's expected
+  format is still an open question in the requirements doc.
+- **2026-09-19 — D10: roles are assigned from the CLI, not a UI.** `users.assignRole`
+  (internal: `npx convex run users:assignRole '{"userId":"<users _id>","role":"supplier"}'`)
+  promotes a signed-up account; `bootstrapProfile` still defaults to school. `SchoolGate`
+  now sits on a `UserGate` that hands the whole profile to the page, and `/deliveries`
+  switches its panel on `role` (supplier: dispatch form; school: confirm + forecast +
+  reconciliation; county: payment file; admin: dispatch + payment file).
+- **2026-09-19 — D10 scope left out on purpose.** `delivery.shortfall_detected` (not in
+  D10's requirement list; a comparator on confirm once D13 has a supplier surface to show
+  it), supplier/county SMS (rules have a `guardian` audience only — dashboards are Sprint 3),
+  and a USSD confirmation path.
+- **2026-09-19 — Two test time bombs.** `tests/collapse.test.ts` hardcoded
+  `SCHOOL_DAY = 2026-09-18` (same failure mode as the D8 note) — now the first Friday ≥ 7 days
+  out with its Mon–Fri derived, so the digest week still lines up. `tests/ussd.test.ts` used
+  a `/s` regex flag the ES2017 root target rejects at typecheck — `[\s\S]` instead.

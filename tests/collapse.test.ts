@@ -2,13 +2,24 @@ import { convexTest } from "convex-test";
 import { describe, expect, test, vi } from "vitest";
 import { internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { addDays, toServiceDate } from "../convex/lib/dates";
 import { seedRules } from "../convex/rules";
 import schema from "../convex/schema";
 
 const modules = import.meta.glob("../convex/**/*.ts");
 
-const SCHOOL_DAY = "2026-09-18";
-const WEEK_DAYS = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", SCHOOL_DAY];
+// A Friday at least a week ahead: convex-test fires past-due schedules at
+// once, so a fixed date turns into a sweep-before-taps time bomb.
+const DAYS_AHEAD = 7;
+const FRIDAY = 5;
+const DAYS_PER_WEEK = 7;
+const WEEKDAYS_PER_WEEK = 5;
+function nextFridayFrom(serviceDate: string): string {
+  const weekday = new Date(`${serviceDate}T00:00:00.000Z`).getUTCDay();
+  return addDays(serviceDate, (FRIDAY - weekday + DAYS_PER_WEEK) % DAYS_PER_WEEK);
+}
+const SCHOOL_DAY = nextFridayFrom(addDays(toServiceDate(Date.now()), DAYS_AHEAD));
+const WEEK_DAYS = Array.from({ length: WEEKDAYS_PER_WEEK }, (_, index) => addDays(SCHOOL_DAY, index - (WEEKDAYS_PER_WEEK - 1)));
 const SERVICE_START_AT = Date.parse(`${SCHOOL_DAY}T09:30:00.000Z`);
 const DEVICE_REF = "READER-01";
 const GUARDIAN_COUNT = 4;

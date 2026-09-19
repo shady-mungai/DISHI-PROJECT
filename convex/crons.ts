@@ -9,6 +9,12 @@ const SERVICE_START_UTC_CRON = `${SERVICE_START_UTC.minute} ${SERVICE_START_UTC.
 // 15:00 Nairobi on Fridays — after the last service window of the week.
 const WEEKLY_DIGEST_UTC_CRON = "0 12 * * 5";
 
+// 21:00 Nairobi — tomorrow's portion forecast, before the cooking cycle (SU-01).
+const FORECAST_UTC_CRON = "0 18 * * *";
+
+// 18:00 Nairobi — after the last cutoff, reconcile today's dispatch/confirm/consume.
+const RECONCILIATION_UTC_CRON = "0 15 * * *";
+
 const crons = cronJobs();
 
 crons.cron(
@@ -19,5 +25,9 @@ crons.cron(
 );
 
 crons.cron("weekly guardian digest", WEEKLY_DIGEST_UTC_CRON, internal.digest.sendWeeklyDigest, {});
+
+crons.cron("publish tomorrow's portion forecasts", FORECAST_UTC_CRON, internal.deliveries.publishForecastsForAllSchools, {});
+
+crons.cron("daily reconciliation", RECONCILIATION_UTC_CRON, internal.deliveries.reconcileAllSchools, {});
 
 export default crons;

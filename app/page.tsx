@@ -6,6 +6,7 @@ const ROUTES = [
   { href: "/enrolment/import", label: "Enrolment import" },
   { href: "/service-day", label: "Service day" },
   { href: "/reader", label: "Tap reader" },
+  { href: "/deliveries", label: "Deliveries" },
 ] as const;
 
 export default function Home() {

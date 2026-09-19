@@ -1,9 +1,9 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { authComponent } from "./auth";
 import { AuthzFailure } from "./lib/roles";
 import { PILOT_SCHOOL_CODE } from "./seed";
-import schema from "./schema";
+import schema, { userRole } from "./schema";
 
 export const me = query({
   args: {},
@@ -21,9 +21,9 @@ export const me = query({
 });
 
 // ponytail: every self-serve signup becomes a "school" user scoped to the
-// one seeded pilot school — correct while the pilot is one school, wrong once
-// a second actor type (county/supplier/admin) needs to sign in. Upgrade to a
-// real invite/role-assignment flow before D9.
+// one seeded pilot school; `assignRole` below promotes a signed-up account to
+// supplier/county/admin from the CLI. Replace with an invite flow when a
+// second school or self-serve supplier onboarding exists.
 export const bootstrapProfile = mutation({
   args: { displayName: v.string() },
   returns: v.id("users"),
@@ -55,5 +55,19 @@ export const bootstrapProfile = mutation({
       role: "school",
       schoolId: school._id,
     });
+  },
+});
+
+// npx convex run users:assignRole '{"userId":"<users _id>","role":"supplier"}'
+export const assignRole = internalMutation({
+  args: { userId: v.id("users"), role: userRole, schoolId: v.optional(v.id("schools")) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new ConvexError(AuthzFailure.NoProfile);
+    }
+    await ctx.db.patch(user._id, { role: args.role, schoolId: args.role === "school" ? (args.schoolId ?? user.schoolId) : undefined });
+    return null;
   },
 });

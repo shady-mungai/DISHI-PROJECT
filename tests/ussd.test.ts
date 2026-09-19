@@ -146,7 +146,7 @@ describe("GET /ussd/<token>", () => {
   test("P-08: toggling an alert flips optedOutTypes and writes an audited event", async () => {
     const t = convexTest(schema, modules);
     const guardianId = await seedWorld(t);
-    expect(await walk(t, ["4"])).toMatch(/^CON Alerts.*\n1\. Meal eaten ON\n/s);
+    expect(await walk(t, ["4"])).toMatch(/^CON Alerts[\s\S]*\n1\. Meal eaten ON\n/);
     expect(await walk(t, ["4", "1"])).toBe("END Meal eaten alerts now OFF");
     const { guardian, event } = await t.run(async (ctx) => ({
       guardian: await ctx.db.get(guardianId),
