@@ -40,7 +40,7 @@ describe("celcomChannel", () => {
       apikey: "k",
       partnerID: "p",
       shortcode: "DISHI",
-      mobile: MESSAGE.to,
+      mobile: "254700000123",
       message: MESSAGE.body,
     });
   });

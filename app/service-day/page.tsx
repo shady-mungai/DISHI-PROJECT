@@ -27,6 +27,7 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
 
   const summary = useQuery(api.expectations.daySummary, { schoolId, serviceDate });
   const notifications = useQuery(api.notifications.recentForSchool, { schoolId });
+  const spend = useQuery(api.notifications.spendByRuleToday, { schoolId });
   const runExpectations = useMutation(api.expectations.runExpectationsNow);
   const runSweep = useMutation(api.expectations.runSweepNow);
   const simulate = useAction(api.simulator.runServiceDay);
@@ -105,13 +106,42 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
             <li key={notification._id} className={NOTIFICATION_CLASS}>
               <span className="font-mono text-zinc-500">{notification.maskedMsisdn}</span>
               <span className="flex-1">{notification.body}</span>
-              <span className="text-zinc-500">{notification.failureReason ?? notification.status}</span>
+              <span className="text-zinc-500">
+                {notification.suppressionReason ?? notification.failureReason ?? notification.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold">SMS spend today</h2>
+        {spend?.length === 0 && <p className="text-sm text-zinc-500">Nothing sent yet.</p>}
+        {spend && spend.length > 0 && <p className="text-sm text-zinc-500">{volumeReductionLabel(spend)}</p>}
+        <ul className="flex flex-col gap-1 text-sm">
+          {spend?.map((row) => (
+            <li key={row.ruleKey} className={NOTIFICATION_CLASS}>
+              <span className="flex-1 font-mono">{row.ruleKey}</span>
+              <span>{row.sent} sent</span>
+              <span>{row.suppressed} suppressed</span>
+              <span className="text-zinc-500">KES {row.costKes.toFixed(2)}</span>
             </li>
           ))}
         </ul>
       </section>
     </div>
   );
+}
+
+type SpendRow = { sent: number; suppressed: number };
+
+// NFR-602: reduction against the naive one-message-per-trigger baseline.
+function volumeReductionLabel(rows: SpendRow[]): string {
+  const sent = rows.reduce((sum, row) => sum + row.sent, 0);
+  const candidates = sent + rows.reduce((sum, row) => sum + row.suppressed, 0);
+  if (candidates === 0) {
+    return "";
+  }
+  return `${Math.round((1 - sent / candidates) * 100)}% below the naive per-trigger baseline (${sent} of ${candidates})`;
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {

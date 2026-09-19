@@ -7,6 +7,7 @@ import { toServiceDate } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { normaliseTagUid } from "./lib/tagUid";
 import { readSetting, SettingKey } from "./settings";
+import { debitForMeal } from "./wallets";
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_CLOCK_SKEW_TOLERANCE_SECONDS = 120;
@@ -186,6 +187,7 @@ async function recordTap(
     serviceDate,
   });
   await fulfilExpectation(ctx, student._id, serviceDate);
+  await debitForMeal(ctx, { student, eventId: event.eventId, correlationId, now: recordedAt });
 
   return {
     eventId: event.eventId,

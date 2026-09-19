@@ -1,7 +1,7 @@
 "use client";
 
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/app/auth-client";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
@@ -14,9 +14,8 @@ export function Centered({ children }: { children: ReactNode }) {
   return <div className="flex flex-1 items-center justify-center p-8 text-zinc-500">{children}</div>;
 }
 
-// Renders `children(schoolId)` only once the viewer is signed in and has a
-// school-scoped profile. Same gate the enrolment page carries inline.
-export function SchoolGate({ children }: { children: (schoolId: Id<"schools">) => ReactNode }) {
+// Renders `children(user)` only once the viewer is signed in and has a profile.
+export function UserGate({ children }: { children: (user: Doc<"users">) => ReactNode }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
 
   if (isLoading) {
@@ -26,6 +25,16 @@ export function SchoolGate({ children }: { children: (schoolId: Id<"schools">) =
     return <SignInForm />;
   }
   return <ProfileGate>{children}</ProfileGate>;
+}
+
+// Renders `children(schoolId)` only for a school-scoped profile. Same gate the
+// enrolment page carries inline.
+export function SchoolGate({ children }: { children: (schoolId: Id<"schools">) => ReactNode }) {
+  return (
+    <UserGate>
+      {(user) => (user.schoolId ? children(user.schoolId) : <Centered>Your account isn&apos;t attached to a school yet.</Centered>)}
+    </UserGate>
+  );
 }
 
 function SignInForm() {
@@ -90,7 +99,7 @@ function SignInForm() {
   );
 }
 
-function ProfileGate({ children }: { children: (schoolId: Id<"schools">) => ReactNode }) {
+function ProfileGate({ children }: { children: (user: Doc<"users">) => ReactNode }) {
   const profile = useQuery(api.users.me);
   const bootstrapProfile = useMutation(api.users.bootstrapProfile);
   const bootstrapped = useRef(false);
@@ -111,8 +120,5 @@ function ProfileGate({ children }: { children: (schoolId: Id<"schools">) => Reac
   if (profile === undefined || profile === null) {
     return <Centered>Setting up your account…</Centered>;
   }
-  if (!profile.schoolId) {
-    return <Centered>Your account isn&apos;t attached to a school yet.</Centered>;
-  }
-  return <>{children(profile.schoolId)}</>;
+  return <>{children(profile)}</>;
 }

@@ -12,6 +12,7 @@ const rosterRowValidator = v.object({
   fullName: v.string(),
   className: v.string(),
   guardianMsisdn: v.string(),
+  guardianName: v.optional(v.string()),
   guardianRelationship: v.string(),
   tagUid: v.optional(v.string()),
   openingBalanceKes: v.number(),
@@ -21,6 +22,7 @@ export type RosterRow = {
   fullName: string;
   className: string;
   guardianMsisdn: string;
+  guardianName?: string;
   guardianRelationship: string;
   tagUid?: string;
   openingBalanceKes: number;
@@ -78,6 +80,9 @@ export async function commitRosterRows(
     if (guardian.created) {
       guardiansCreated += 1;
     }
+    if (row.guardianName) {
+      await ctx.db.patch(guardian.id, { displayName: row.guardianName });
+    }
 
     await ctx.db.insert("guardianLinks", {
       guardianId: guardian.id,
@@ -114,7 +119,7 @@ export async function commitRosterRows(
   return { studentsCreated: rows.length, guardiansCreated };
 }
 
-async function findOrCreateGuardian(
+export async function findOrCreateGuardian(
   ctx: MutationCtx,
   msisdn: string,
 ): Promise<{ id: Id<"guardians">; created: boolean }> {

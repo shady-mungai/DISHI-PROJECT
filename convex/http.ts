@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { hmacSha256Hex, timingSafeEqualHex } from "./lib/hmac";
 import { bodyToRecord, parseDeliveryReport } from "./lib/deliveryReport";
 import { MAX_INGEST_BATCH_EVENTS, parseIngestBody } from "./ingest";
+import { parseUssdRequest } from "./lib/ussd";
 
 const http = httpRouter();
 
@@ -79,8 +80,10 @@ http.route({
       return Response.json({ error: "invalid_token" }, { status: 401 });
     }
 
-    const report = parseDeliveryReport(bodyToRecord(req.headers.get("Content-Type"), await req.text()));
+    const body = bodyToRecord(req.headers.get("Content-Type"), await req.text());
+    const report = parseDeliveryReport(body);
     if (!report) {
+      console.log("dlr unparsed keys", body && typeof body === "object" ? Object.keys(body) : typeof body);
       return Response.json({ error: "invalid_body" }, { status: 400 });
     }
 
@@ -88,5 +91,57 @@ http.route({
     return Response.json({ matched: notificationId !== null }, { status: 200 });
   }),
 });
+
+// Celcom Africa USSD: GET with SESSIONID, MSISDN, USSDCODE, INPUT, where INPUT
+// is the cumulative "*"-joined path ("" → "1" → "1*3"). The shared token lives
+// in the path, not the query string, so the gateway's own "?..." cannot
+// clobber it. Register
+// https://<deployment>.convex.site/ussd/<USSD_TOKEN> as the callback URL.
+http.route({
+  pathPrefix: "/ussd/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const token = url.pathname.slice("/ussd/".length);
+    const expectedToken = process.env.USSD_TOKEN;
+    if (!expectedToken || !token || !timingSafeEqualHex(token, expectedToken)) {
+      return new Response("END Service unavailable", { status: 401, headers: { "Content-Type": "text/plain" } });
+    }
+
+    const request = parseUssdRequest(url.searchParams);
+    if (!request) {
+      return new Response("END Invalid request", { status: 400, headers: { "Content-Type": "text/plain" } });
+    }
+
+    const reply = await ctx.runMutation(internal.ussd.step, request);
+    return new Response(reply, { status: 200, headers: { "Content-Type": "text/plain" } });
+  }),
+});
+
+// TODO: payment gateway callback — uncomment when a gateway is contracted.
+// Set PAYMENT_TOKEN (npx convex env set PAYMENT_TOKEN $(openssl rand -hex 32)),
+// give the gateway https://<deployment>.convex.site/wallet?token=<it>, and add
+// a PaymentAdapter beside mockPayerAdapter in lib/wallet/payments.ts that
+// parses the gateway's body into PaymentEvent. Same shared-token gate as /dlr.
+//
+// import { mockPayerAdapter } from "./lib/wallet/payments";
+//
+// http.route({
+//   path: "/wallet",
+//   method: "POST",
+//   handler: httpAction(async (ctx, req) => {
+//     const token = new URL(req.url).searchParams.get("token");
+//     const expectedToken = process.env.PAYMENT_TOKEN;
+//     if (!expectedToken || !token || !timingSafeEqualHex(token, expectedToken)) {
+//       return Response.json({ error: "invalid_token" }, { status: 401 });
+//     }
+//     const payment = mockPayerAdapter.parse(await req.json().catch(() => null));
+//     if (!payment) {
+//       return Response.json({ error: "invalid_body" }, { status: 400 });
+//     }
+//     const result = await ctx.runMutation(internal.wallets.applyPayment, payment);
+//     return Response.json({ result }, { status: result === "unknown_student" ? 404 : 200 });
+//   }),
+// });
 
 export default http;

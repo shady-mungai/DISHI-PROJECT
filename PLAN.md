@@ -207,11 +207,11 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D5 simulator + DLR + live count screen + demo rehearsal — typecheck, lint, build, 44/44 tests green; rehearsed on live deployment: 32 expectations → 29 taps via /ingest (940 ms) → replay 29 duplicates → sweep 3 missed → 32 SMS via console channel → DLR flips to delivered
 
 **Sprint 2**
-- [ ] D6 policy layer + templates + cost instrumentation
-- [ ] D7 collapse/merge + digest + 55% assertion
-- [ ] D8 wallet + hysteresis + depletion forecast
-- [ ] D9 USSD
-- [ ] D10 dispatch → confirm → reconcile → payment file
+- [x] D6 policy layer + templates + cost instrumentation — typecheck, lint, 63/63 tests green; deployed to dev (rules + notifications tables cleared and re-seeded for the schema change)
+- [x] D7 collapse/merge + digest + 55% assertion — typecheck, lint, build, 68/68 tests green; `tests/collapse.test.ts` asserts 67% reduction (12 triggers → 4 SMS) with both missed-meal alerts composed first; deployed to dev, rules re-seeded (templates v3 + digest rule)
+- [x] D8 wallet + hysteresis + depletion forecast — typecheck, lint, build, 76/76 tests green; `tests/wallet.test.ts` asserts a wallet oscillating at the threshold emits exactly one warning (Sprint 2 exit), re-arm above threshold + margin, forecast once per projected date, idempotent top-ups, tap with no wallet still served
+- [x] D9 USSD — typecheck, lint, 85/85 tests green; `tests/ussd.test.ts` walks every menu path over the real `GET /ussd/<token>` route (P-07 one-session status/balance/history, P-08 opt-out toggle audited, P-09 number change confirmed + audited) and asserts every EN/SW screen is GSM-7 and ≤182 chars. Needs `npx convex env set USSD_TOKEN $(openssl rand -hex 32)` and the callback registered with Celcom
+- [x] D10 dispatch → confirm → reconcile → payment file — typecheck, lint, build, 95/95 tests green; `tests/supplyChain.test.ts` asserts a dispatch with no school confirmation produces no payment-file line (Sprint 2 exit), wrong-code rejection + replay no-op, the unconfirmed sweep, the paged reconciliation join and once-per-day forecast; deployed to dev, settings re-seeded (2 new). Needs `npx convex run users:assignRole` for a supplier/county login
 
 **Sprint 3**
 - [ ] D11 school dashboard
@@ -400,3 +400,163 @@ _Appended as we go. Date, decision, why._
   cross-origin with custom headers, so it needs an `OPTIONS` route and CORS headers on
   every response; `Allow-Origin: *` is fine because the endpoint is HMAC-authenticated
   and cookie-free. Verified live: 13 phone taps → 1 accepted, 12 `second_tap_same_day`.
+- **2026-09-15 — Celcom is live on the dev deployment.** `settings.set` (internal) flips
+  `smsChannel` to `celcom` without a redeploy; the adapter strips a leading `+` because the
+  gateway wants bare `254…`. Celcom's DLR posts `{ messageid, description, timeTaken,
+  timestamp }` with the state in `description` (e.g. `DeliveredToTerminal`), so
+  `description` is now a status key as well as a reason key. `notifications.sendTest`
+  (internal) inserts a real `notification.test` event + queued notification and runs it
+  through `channels.deliver` and `/dlr` — the smoke test uses the production path, not a
+  side door. Guardians now carry `displayName` from the roster (`guardianName` column) so
+  templates can say `Dear {{guardian}}`; `seedRules` patches an existing rule's template
+  when the seed text changes. `seed.resetPilotRoster` wipes roster-derived tables and
+  loads five real pilot families (Grade 6B, KES 100 opening balance) for handset testing.
+- **2026-09-15 — D6: the policy layer is one pure function.** `lib/policy.ts` →
+  `applyPolicy(input) → send | defer | suppress(reason)`; `rules.notifyGuardians` gathers
+  the inputs (guardian opt-outs, settings, today's count) and acts on the verdict. Order
+  follows FR-501 with two honest deviations: dedupe runs *first* as the idempotent replay
+  guard (a suppressed row carries the same `dedupeKey`, so a replay of an opted-out event
+  writes nothing twice), and the cap is checked before deferral (a deferred message still
+  counts against today, so "at cap during quiet hours" is `daily_cap`, not a 06:00 send).
+  Collapse and priority ranking are D7 — they need the scheduled flush to have anything
+  to rank. Quiet hours *defer* rather than drop: `deliverAt` on the row and
+  `scheduler.runAt` instead of `runAfter(0)`. All hours are Nairobi (UTC+3, no DST;
+  `lib/dates.ts` helpers). Suppressed messages are notification rows with
+  `status: suppressed` + `suppressionReason`, plus a `notification.suppressed` event
+  (FR-502). Cap is a per-guardian index scan over today's rows (`by_guardian` +
+  `_creationTime`), not the rate-limiter component — ceiling noted in code.
+- **2026-09-15 — D6: templates are `{ en, sw }` with a `templateVersion`.** The guardian's
+  `language` picks the text; the notification row records the version it was rendered
+  from. `assertSingleSegment` renders each template at worst-case widths (24-char names,
+  30-char school) and counts GSM-7 segments (`lib/gsm7.ts`: basic set 1, extended set 2,
+  any other char → UCS-2/70); `seedRules` throws before insert and `tests/gsm7.test.ts`
+  asserts every demo template — so an over-long template fails at typecheck/test time,
+  not on a guardian's phone. Spend is computed on read: `notifications.spendByRuleToday`
+  sums `segments × smsCostPerSegmentKes` (new setting, KES 0.80) per `ruleKey` for
+  sent/delivered rows and counts suppressed alongside, shown on `/service-day`. Schema
+  change required clearing `rules` and `notifications` on dev (rehearsal data only).
+- **2026-09-16 — D7: the pending message *is* the collapse window.** No new state
+  machine: a queued row whose `deliverAt` is still ahead is the guardian's open window
+  (`openCarrier` in `rules.ts`, found in the same `by_guardian` day scan the cap already
+  does). Every non-zero `collapseWindowMinutes` defers delivery to `now + window` (or the
+  end of quiet hours, whichever is later) via `runAt(deliverAt, rules.flushCollapsed)`;
+  a later trigger for the same guardian becomes a `suppressed / collapsed` row with
+  `collapsedInto` (audit row + `notification.suppressed` event, FR-502) and costs nothing.
+  `flushCollapsed` composes carrier + merged rows, highest rule priority first
+  (`meal.missed` = 200 outranks `meal.tapped` = 100), then hands to `channels.deliver`.
+  Merge is decided *before* the cap in `applyPolicy` (P-06: collapse, don't queue behind
+  the cap). `collapseWindowMinutes = 0` restores per-trigger sends — the cap test uses it.
+- **2026-09-16 — D7: greeting moved out of the templates (v3).** Templates are now one
+  sentence per child ("{{child}} had lunch at …"); `renderGreeting` prefixes
+  "Dear/Mpendwa {{guardian}}, " once, so a composed message reads as one message, not
+  three. `assertSingleSegment` checks greeting + template. At flush the greeting is
+  stripped by prefix match — deterministic because we built it.
+- **2026-09-16 — D7: the weekly digest is a guardian-addressed event, not a bypass.**
+  `digest.sendWeeklyDigest` (cron Fri 12:00 UTC = 15:00 Nairobi, or `serviceDate` arg)
+  records one `digest.weekly` event per guardian (`payload.guardian_id`, `summary` =
+  "Amina 4/5 meals, KES 80; …" over Mon→Fri expectations + mirrored wallet), idempotent
+  on `eventId`. `resolveRecipients` in `rules.ts` fans a student event out to linked
+  guardians and routes a guardian-addressed one to its named guardian with payload
+  strings as template vars — so opt-out, cap, quiet hours, collapse and dedupe all apply
+  to the digest for free. Digest may exceed one segment at real family sizes; segments
+  are recorded and billed, not blocked.
+- **2026-09-18 — D8: the wallet is a mirror, and the tap handler debits it.** `wallets`
+  gains `lowBalanceArmed` + `updatedAt` (optional, so D2's rows validate). `ingest.recordTap`
+  calls `wallets.debitForMeal` *after* the tap and expectation are written: no wallet row
+  → serve-and-record, nothing else; otherwise `mealPriceKes` is subtracted, `wallet.debited`
+  appended, and `settleBalance` runs. The mirror may go negative — the external payer owns
+  the truth, and a served meal is a served meal (FR-303, ST-02).
+- **2026-09-18 — D8: hysteresis is one pure function.** `lib/wallet/threshold.ts` →
+  `compareThreshold({ previousBalance, balance, armed, threshold, margin })` returns the
+  new arm state plus `lowBalance` (fires only when armed and ≤ threshold, then disarms)
+  and `depleted` (edge: previous > 0, now ≤ 0). Re-arm only when balance > threshold +
+  `lowBalanceReArmMarginKes`. Every balance movement — debit or top-up — goes through
+  `settleBalance`, so a top-up that only reaches the band between threshold and margin does
+  not re-arm. `wallet.depleted` has no hysteresis (a wallet topped up by one meal and
+  emptied daily is genuinely depleted daily); `ponytail:` ceiling.
+- **2026-09-18 — D8: the forecast is idempotent on its own date, not on arm state.**
+  `projectDepletion` (pure): meals remaining = ⌊balance / price⌋; burn rate = fulfilled ÷
+  possible over the trailing 14 days of `expectations` (no history → 1 meal per school
+  day); the projected date is the `⌊meals / rate⌋`-th upcoming school day from
+  `academicCalendar` (30 rows read, ~4 weeks horizon; beyond that → no forecast).
+  `wallet.depletion_forecast` is emitted when cover ≤ `depletionForecastLeadSchoolDays`
+  (3) with eventId `…:<student>:<date>` — the same date is never sent twice, a new date
+  after a top-up is. With daily meals the first warning lands three school days out (P-04).
+- **2026-09-18 — D8: no payment gateway in scope, so the "adapter" is the mutation
+  contract.** `wallets.applyPayment` (internal) takes `{ externalRef, schoolCode,
+  studentRef, amountKes, newBalanceKes?, occurredAt? }` — that validator is the FR-301
+  contract a future gateway adapter (Daraja etc.) must translate its callback into. It is
+  idempotent on `wallet.topped_up:<externalRef>`; an authoritative `newBalanceKes`
+  overwrites the mirror, otherwise the amount is added; a missing wallet row is created.
+  The mock external payer is `npx convex run wallets:applyPayment '{…}'`. The token-gated
+  `/wallet` webhook sits commented out at the bottom of `http.ts` with its setup steps,
+  and `lib/wallet/payments.ts` keeps the `PaymentAdapter` interface + mock parser for
+  when a gateway is contracted. Four new rules
+  (`wallet_topped_up` 100, `wallet_low_balance` 150, `wallet_depletion_forecast` 150,
+  `wallet_depleted` 200) — `resolveRecipients` now exposes every non-boolean payload
+  field as a template var, so `{{balance}}`, `{{new_balance}}`, `{{meals_remaining}}`,
+  `{{projected_date}}` need no special casing. Dev needs: `seed:seedDemo` (rules) and
+  `settings:seedDefaults` (one new setting).
+- **2026-09-18 — D9: `INPUT` is the whole session, so there is no session table.** Celcom's
+  callback is a GET with `SESSIONID, MSISDN, USSDCODE (*265*39#), INPUT`, where `INPUT`
+  is the cumulative `*`-joined path (`""` → `"1"` → `"1*3"`), exactly the Africa's Talking
+  shape. `pathToInputs` splits it (a `0` pops the previous choice — global "back");
+  `renderUssd(snapshot, inputs)` in `lib/ussd.ts` is pure with EN+SW copy in one table;
+  `ussd.step` (one mutation) loads the guardian snapshot, renders, and applies any effect.
+  Menu: status / balance / last 5 meal days (all from `expectations`, one indexed read
+  per child, picker inserted only for multi-child guardians) / alert toggles (writes
+  `guardians.optedOutTypes`, the same field the policy pipeline reads, so P-08 holds with
+  no further wiring) / change number (validate → confirm → `guardian.contact_updated`
+  with old + new). Effects are idempotent on `<type>:<SESSIONID>` so a replayed GET does
+  not flip a preference back. Guardian lookup tries `+254…`, `254…` and `0…` because
+  enrolment stores the sheet's spelling verbatim. The shared token is a path segment
+  (`/ussd/<USSD_TOKEN>`), not a query param, so the gateway's own `?SESSIONID=…` cannot
+  clobber it. Response is `text/plain` with `CON`/`END` prefixes; gateway session TTL is
+  180 s, so every path ends within three screens (NFR-703).
+- **2026-09-19 — D10: the one-time code is minted at declaration and only its hash is
+  stored.** `deliveries.declare` (supplier/admin) returns a 6-digit code once; the row keeps
+  `sha256(schoolId:code)` indexed `by_school_confirmCodeHash`, so the school-scoped lookup on
+  `/deliveries` cannot match another school's docket. Confirm/dispute is one mutation
+  (`resolve`, school/admin, `action: confirm | dispute`) from the same page on a phone —
+  SC-02's "without a laptop" is the web form, not a USSD path. A replayed resolution of an
+  already-resolved delivery returns the existing status and writes nothing.
+- **2026-09-19 — D10: the unconfirmed sweep is per delivery, scheduler-native.** Declaration
+  does `runAt(expectedConfirmBy, sweepUnconfirmed, { deliveryId })` with
+  `deliveryConfirmWindowMinutes` (new setting, 120) — same shape as the meal sweep; a
+  `declared` row at that time becomes `unconfirmed` + `delivery.unconfirmed`. A late
+  confirmation still lands (`unconfirmed → confirmed`), so the payment file is never
+  starved by a slow cook.
+- **2026-09-19 — D10: forecast is one pure function, one row per school-day.**
+  `lib/supply.ts#forecastPortions`: same-weekday fulfilment rate over the trailing 14 days
+  of `expectations` (≥3 samples → `high`), else any-day rate (`medium`), else the active
+  roster (`low`), × active students, rounded up. `forecasts` is upserted;
+  `demand.forecast_published` fires on first publication only, a recompute refreshes the row.
+  Cron `0 18 * * *` (21:00 Nairobi) targets tomorrow; "Run forecast now" on `/deliveries`
+  targets the day after the picked date. Not-a-school-day → no row.
+- **2026-09-19 — D10: reconciliation is the paged cross-stream join, variance = confirmed −
+  consumed.** `reconcilePageFor` pages fulfilled `expectations` for the school-day with a
+  cursor, chains via `runAfter(0, …)`, and joins the (small) `deliveries` stream on the last
+  page: dispatched = Σ portions, confirmed = Σ `portionsReceived` of confirmed rows,
+  consumed = fulfilled count, `variancePct` relative to confirmed. `reconciliations` is
+  upserted and every computation appends `reconciliation.daily_computed` (eventId carries
+  `computedAt`). Cron `0 15 * * *` (18:00 Nairobi) for today; manual trigger on `/deliveries`.
+  Variance streaks and `variance_exceeded` are D12.
+- **2026-09-19 — D10: the payment file is a query over `deliveries.by_status_serviceDate =
+  confirmed`.** Nothing else can add a line (SU-07, FR-608); amount = `portionsReceived` ×
+  `supplierPortionRateKes` (new setting, 25). `toPaymentCsv` is pure; the county/admin view
+  on `/deliveries` downloads it. Format is our own — the county finance system's expected
+  format is still an open question in the requirements doc.
+- **2026-09-19 — D10: roles are assigned from the CLI, not a UI.** `users.assignRole`
+  (internal: `npx convex run users:assignRole '{"userId":"<users _id>","role":"supplier"}'`)
+  promotes a signed-up account; `bootstrapProfile` still defaults to school. `SchoolGate`
+  now sits on a `UserGate` that hands the whole profile to the page, and `/deliveries`
+  switches its panel on `role` (supplier: dispatch form; school: confirm + forecast +
+  reconciliation; county: payment file; admin: dispatch + payment file).
+- **2026-09-19 — D10 scope left out on purpose.** `delivery.shortfall_detected` (not in
+  D10's requirement list; a comparator on confirm once D13 has a supplier surface to show
+  it), supplier/county SMS (rules have a `guardian` audience only — dashboards are Sprint 3),
+  and a USSD confirmation path.
+- **2026-09-19 — Two test time bombs.** `tests/collapse.test.ts` hardcoded
+  `SCHOOL_DAY = 2026-09-18` (same failure mode as the D8 note) — now the first Friday ≥ 7 days
+  out with its Mon–Fri derived, so the digest week still lines up. `tests/ussd.test.ts` used
+  a `/s` regex flag the ES2017 root target rejects at typecheck — `[\s\S]` instead.

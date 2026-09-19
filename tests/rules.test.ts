@@ -12,12 +12,16 @@ const SERVICE_START_AT = Date.parse(`${SCHOOL_DAY}T09:30:00.000Z`);
 const DEVICE_REF = "READER-01";
 const TAG_UID = "tag-001";
 const GUARDIAN_MSISDN = "+254700000123";
+const GUARDIAN_NAME = "Wanjiku Njeri";
 const TAPPED_RULE = "guardian.meal_tapped";
 const MISSED_RULE = "guardian.meal_missed";
 
 type Harness = ReturnType<typeof convexTest>;
 
-async function seedWorld(t: Harness): Promise<{ schoolId: Id<"schools">; studentId: Id<"students"> }> {
+const SECOND_TAG_UID = "tag-002";
+const ALL_DAY_QUIET = { start: 0, end: 24 };
+
+async function seedWorld(t: Harness): Promise<{ schoolId: Id<"schools">; studentId: Id<"students">; guardianId: Id<"guardians"> }> {
   const ids = await t.run(async (ctx) => {
     await seedRules(ctx);
     await ctx.db.insert("academicCalendar", { serviceDate: SCHOOL_DAY, isSchoolDay: true, dayType: "full" });
@@ -31,13 +35,13 @@ async function seedWorld(t: Harness): Promise<{ schoolId: Id<"schools">; student
     });
     const guardianId = await ctx.db.insert("guardians", {
       msisdn: GUARDIAN_MSISDN,
-      displayName: "Guardian",
+      displayName: GUARDIAN_NAME,
       language: "en",
       optedOutTypes: [],
     });
     await ctx.db.insert("guardianLinks", { guardianId, studentId, relationship: "mother", active: true });
     await ctx.db.insert("tags", { tagUid: TAG_UID, studentId, status: "active", issuedAt: Date.now() });
-    return { schoolId, studentId };
+    return { schoolId, studentId, guardianId };
   });
   await t.mutation(internal.devices.registerDevice, {
     deviceRef: DEVICE_REF,
@@ -46,6 +50,19 @@ async function seedWorld(t: Harness): Promise<{ schoolId: Id<"schools">; student
     firmwareVersion: "1.0.0",
   });
   return ids;
+}
+
+async function setSetting(t: Harness, key: string, value: number): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.insert("settings", { key, value, description: "test" });
+  });
+}
+
+async function tap(t: Harness, eventId: string, tagUid = TAG_UID): Promise<void> {
+  await t.mutation(internal.ingest.recordBatch, {
+    deviceRef: DEVICE_REF,
+    events: [{ eventId, tagUid, occurredAt: SERVICE_START_AT }],
+  });
 }
 
 async function notifications(t: Harness) {
@@ -105,6 +122,7 @@ describe("rules engine", () => {
     expect(rows[0].ruleKey).toBe(TAPPED_RULE);
     expect(rows[0].msisdn).toBe(GUARDIAN_MSISDN);
     expect(rows[0].body).toContain("Amina Njeri");
+    expect(rows[0].body).toContain(`Dear ${GUARDIAN_NAME}`);
     expect(rows[0].body).toContain(SCHOOL_DAY);
     expect(rows[0].status).toBe("sent");
   });
@@ -150,5 +168,86 @@ describe("rules engine", () => {
 
     const rows = await notifications(t);
     expect(rows.map((row) => row.ruleKey)).toEqual([MISSED_RULE]);
+  });
+
+  test("an opted-out type is suppressed with a reason and an audit event (FR-502, P-08)", async () => {
+    const t = convexTest(schema, modules);
+    const { guardianId } = await seedWorld(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(guardianId, { optedOutTypes: ["meal.tapped"] });
+    });
+
+    await tap(t, "tap-1");
+    await runScheduled(t);
+
+    const rows = await notifications(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("suppressed");
+    expect(rows[0].suppressionReason).toBe("opted_out");
+    const events = await t.run(async (ctx) => await ctx.db.query("events").collect());
+    const suppressed = events.filter((event) => event.type === "notification.suppressed");
+    expect(suppressed).toHaveLength(1);
+    expect(suppressed[0].payload.suppression_reason).toBe("opted_out");
+  });
+
+  test("the daily cap drops the message past the cap (P-06)", async () => {
+    const t = convexTest(schema, modules);
+    const { schoolId, guardianId } = await seedWorld(t);
+    await setSetting(t, "dailyMessageCap", 1);
+    await setSetting(t, "collapseWindowMinutes", 0);
+    await t.run(async (ctx) => {
+      const secondStudentId = await ctx.db.insert("students", {
+        schoolId,
+        studentRef: "STU-2",
+        fullName: "Baraka Njeri",
+        className: "2B",
+        status: "active",
+      });
+      await ctx.db.insert("guardianLinks", { guardianId, studentId: secondStudentId, relationship: "mother", active: true });
+      await ctx.db.insert("tags", { tagUid: SECOND_TAG_UID, studentId: secondStudentId, status: "active", issuedAt: Date.now() });
+    });
+
+    await tap(t, "tap-1");
+    await tap(t, "tap-2", SECOND_TAG_UID);
+    await runScheduled(t);
+
+    const statuses = (await notifications(t)).map((row) => [row.status, row.suppressionReason]);
+    expect(statuses).toEqual([
+      ["sent", undefined],
+      ["suppressed", "daily_cap"],
+    ]);
+  });
+
+  test("quiet hours hold the message until they end", async () => {
+    const t = convexTest(schema, modules);
+    await seedWorld(t);
+    await setSetting(t, "quietHoursStartHour", ALL_DAY_QUIET.start);
+    await setSetting(t, "quietHoursEndHour", ALL_DAY_QUIET.end);
+
+    await tap(t, "tap-1");
+    await t.mutation(internal.rules.evaluate, {
+      eventId: await t.run(async (ctx) => (await ctx.db.query("events").first())!._id),
+    });
+
+    const rows = await notifications(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("queued");
+    expect(rows[0].deliverAt).toBeGreaterThan(Date.now());
+  });
+
+  test("a Kiswahili guardian gets the Kiswahili template (P-10, NFR-705)", async () => {
+    const t = convexTest(schema, modules);
+    const { guardianId } = await seedWorld(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(guardianId, { language: "sw" });
+    });
+
+    await tap(t, "tap-1");
+    await runScheduled(t);
+
+    const rows = await notifications(t);
+    expect(rows[0].body).toContain("Mpendwa");
+    expect(rows[0].templateVersion).toBe(3);
+    expect(rows[0].segments).toBe(1);
   });
 });

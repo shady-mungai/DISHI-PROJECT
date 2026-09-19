@@ -26,11 +26,25 @@ export const notificationStatus = v.union(
   v.literal("sent"),
   v.literal("delivered"),
   v.literal("failed"),
+  v.literal("suppressed"),
 );
+
+export const guardianLanguage = v.union(v.literal("en"), v.literal("sw"));
+
+export const localisedTemplates = v.object({ en: v.string(), sw: v.string() });
 
 export const notificationChannel = v.literal("sms");
 
 export const ruleAudience = v.literal("guardian");
+
+export const deliveryStatus = v.union(
+  v.literal("declared"),
+  v.literal("unconfirmed"),
+  v.literal("confirmed"),
+  v.literal("disputed"),
+);
+
+export const forecastConfidence = v.union(v.literal("low"), v.literal("medium"), v.literal("high"));
 
 export default defineSchema({
   users: defineTable({
@@ -60,7 +74,7 @@ export default defineSchema({
   guardians: defineTable({
     msisdn: v.string(),
     displayName: v.string(),
-    language: v.union(v.literal("en"), v.literal("sw")),
+    language: guardianLanguage,
     optedOutTypes: v.array(v.string()),
     consentRecordedAt: v.optional(v.number()),
     consentBasis: v.optional(v.string()),
@@ -143,6 +157,8 @@ export default defineSchema({
   wallets: defineTable({
     studentId: v.id("students"),
     balanceKes: v.number(),
+    lowBalanceArmed: v.optional(v.boolean()),
+    updatedAt: v.optional(v.number()),
   }).index("by_student", ["studentId"]),
 
   rules: defineTable({
@@ -150,7 +166,8 @@ export default defineSchema({
     eventType: v.string(),
     predicate: v.string(),
     audience: ruleAudience,
-    template: v.string(),
+    templates: localisedTemplates,
+    templateVersion: v.number(),
     channel: notificationChannel,
     priority: v.number(),
     enabled: v.boolean(),
@@ -168,15 +185,61 @@ export default defineSchema({
     msisdn: v.string(),
     channel: notificationChannel,
     body: v.string(),
+    segments: v.number(),
+    templateVersion: v.optional(v.number()),
     status: notificationStatus,
+    suppressionReason: v.optional(v.string()),
+    deliverAt: v.optional(v.number()),
+    collapsedInto: v.optional(v.id("notifications")),
     providerMessageId: v.optional(v.string()),
     failureReason: v.optional(v.string()),
     sentAt: v.optional(v.number()),
   })
     .index("by_dedupeKey", ["dedupeKey"])
+    .index("by_guardian", ["guardianId"])
     .index("by_correlationId", ["correlationId"])
     .index("by_providerMessageId", ["providerMessageId"])
+    .index("by_collapsedInto", ["collapsedInto"])
     .index("by_school", ["schoolId"]),
+
+  deliveries: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    portions: v.number(),
+    vehicle: v.optional(v.string()),
+    docketRef: v.string(),
+    dispatchedAt: v.number(),
+    declaredBy: v.id("users"),
+    confirmCodeHash: v.string(),
+    expectedConfirmBy: v.number(),
+    status: deliveryStatus,
+    portionsReceived: v.optional(v.number()),
+    resolvedBy: v.optional(v.id("users")),
+    resolvedAt: v.optional(v.number()),
+    note: v.optional(v.string()),
+  })
+    .index("by_school_serviceDate", ["schoolId", "serviceDate"])
+    .index("by_school_confirmCodeHash", ["schoolId", "confirmCodeHash"])
+    .index("by_status_serviceDate", ["status", "serviceDate"]),
+
+  forecasts: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    portions: v.number(),
+    confidence: forecastConfidence,
+    computedAt: v.number(),
+  }).index("by_school_serviceDate", ["schoolId", "serviceDate"]),
+
+  reconciliations: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    dispatched: v.number(),
+    confirmed: v.number(),
+    consumed: v.number(),
+    variance: v.number(),
+    variancePct: v.number(),
+    computedAt: v.number(),
+  }).index("by_school_serviceDate", ["schoolId", "serviceDate"]),
 
   settings: defineTable({
     key: v.string(),

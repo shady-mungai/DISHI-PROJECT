@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { addDays, isWeekend } from "./lib/dates";
+import { commitRosterRows, type RosterRow } from "./enrolment";
 import { seedRules } from "./rules";
 import { DEMO_SETTINGS } from "./settings";
 
@@ -71,5 +72,54 @@ export const seedDemo = internalMutation({
       calendarDaysCreated,
       rulesCreated: await seedRules(ctx),
     };
+  },
+});
+
+const PILOT_FAMILIES = [
+  { student: "Amani Mungai", guardian: "Mary Mungai", msisdn: "254700574770" },
+  { student: "Zawadi Otieno", guardian: "Peter Otieno", msisdn: "254755770777" },
+  { student: "Baraka Wanjiru", guardian: "Grace Wanjiru", msisdn: "254702259662" },
+  { student: "Imani Kiprop", guardian: "Daniel Kiprop", msisdn: "254722737170" },
+  { student: "Neema Achieng", guardian: "Faith Achieng", msisdn: "254700300631" },
+] as const;
+const PILOT_CLASS_NAME = "Grade 6B";
+const PILOT_OPENING_BALANCE_KES = 100;
+const ROSTER_TABLES = [
+  "tags",
+  "wallets",
+  "expectations",
+  "notifications",
+  "guardianLinks",
+  "guardians",
+  "students",
+] as const;
+
+export const resetPilotRoster = internalMutation({
+  args: {},
+  returns: v.object({ studentsCreated: v.number(), guardiansCreated: v.number() }),
+  handler: async (ctx) => {
+    const school = await ctx.db
+      .query("schools")
+      .withIndex("by_code", (q) => q.eq("code", PILOT_SCHOOL_CODE))
+      .unique();
+    if (!school) {
+      throw new Error(`Run seedDemo first: school ${PILOT_SCHOOL_CODE} missing`);
+    }
+
+    for (const table of ROSTER_TABLES) {
+      for (const row of await ctx.db.query(table).collect()) {
+        await ctx.db.delete(row._id);
+      }
+    }
+
+    const rows: RosterRow[] = PILOT_FAMILIES.map((family) => ({
+      fullName: family.student,
+      className: PILOT_CLASS_NAME,
+      guardianMsisdn: family.msisdn,
+      guardianName: family.guardian,
+      guardianRelationship: "guardian",
+      openingBalanceKes: PILOT_OPENING_BALANCE_KES,
+    }));
+    return await commitRosterRows(ctx, school._id, rows);
   },
 });

@@ -1,7 +1,7 @@
 export type DeliveryReport = { providerMessageId: string; delivered: boolean; reason: string };
 
 const MESSAGE_ID_KEYS = ["messageid", "message_id", "messageId", "id"];
-const STATUS_KEYS = ["status", "delivery_status", "dlr_status", "deliveryStatus"];
+const STATUS_KEYS = ["status", "delivery_status", "dlr_status", "deliveryStatus", "description"];
 const REASON_KEYS = ["description", "reason", "status_description", "error"];
 const DELIVERED_PATTERN = /deliv|success|^200$/i;
 
@@ -15,8 +15,8 @@ function firstString(record: Record<string, unknown>, keys: readonly string[]): 
   return undefined;
 }
 
-// TODO: confirm field names against the Celcom Africa DLR callback spec;
-// the key lists above cover the shapes seen from Celcom and Africa's Talking.
+// Celcom posts { messageid, description, timeTaken, timestamp } with the
+// state in description (e.g. DeliveredToTerminal); Africa's Talking uses status.
 export function parseDeliveryReport(body: unknown): DeliveryReport | null {
   if (typeof body !== "object" || body === null) {
     return null;

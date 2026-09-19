@@ -1,6 +1,7 @@
 import type { SmsChannel, SmsMessage, SmsSendResult } from "./types";
 
 const HTTP_OK = 200;
+const LEADING_PLUS = /^\+/;
 
 type CelcomRecipient = { "respose-code"?: number; "response-code"?: number; "response-description"?: string; messageid?: number | string };
 type CelcomResponse = { responses?: CelcomRecipient[] };
@@ -37,7 +38,7 @@ export const celcomChannel: SmsChannel = {
       response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, mobile: message.to, message: message.body }),
+        body: JSON.stringify({ ...body, mobile: message.to.replace(LEADING_PLUS, ""), message: message.body }),
       });
     } catch {
       return { status: "failed", failureReason: "gateway_unreachable" };
