@@ -11,6 +11,7 @@ const ROUTES = [
   { href: "/supplier", label: "Supplier dashboard" },
   { href: "/county", label: "County dashboard" },
   { href: "/enrolment/import", label: "Enrolment import" },
+  { href: "/admin", label: "Admin console" },
 ] as const;
 
 export default function Home() {
