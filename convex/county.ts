@@ -43,7 +43,7 @@ async function readThresholds(ctx: QueryCtx): Promise<Thresholds> {
 
 // Newest first, so the streak walk starts at `to` and stops at the first
 // in-tolerance day. Non-school days have no row and are skipped by construction.
-async function reconciliationsNewestFirst(ctx: QueryCtx, schoolId: Id<"schools">, range: DateRange): Promise<Doc<"reconciliations">[]> {
+export async function reconciliationsNewestFirst(ctx: QueryCtx, schoolId: Id<"schools">, range: DateRange): Promise<Doc<"reconciliations">[]> {
   return await ctx.db
     .query("reconciliations")
     .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", schoolId).gte("serviceDate", range.from).lte("serviceDate", range.to))

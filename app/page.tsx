@@ -8,6 +8,7 @@ const ROUTES = [
   { href: "/service-day", label: "School dashboard" },
   { href: "/reader", label: "Tap reader" },
   { href: "/deliveries", label: "Deliveries" },
+  { href: "/supplier", label: "Supplier dashboard" },
   { href: "/county", label: "County dashboard" },
   { href: "/enrolment/import", label: "Enrolment import" },
 ] as const;

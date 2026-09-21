@@ -16,6 +16,7 @@ const STUDENT_PAGE_SIZE = 100;
 const SWEEP_BATCH_SIZE = 100;
 const MAX_SCHOOLS = 100;
 const SUMMARY_READ_CAP = 1000;
+const STALLED_CHECK_AT_WINDOW_FRACTION = 0.5;
 
 type ServiceWindow = { windowStart: number; windowEnd: number; cutoffAt: number };
 
@@ -166,10 +167,10 @@ async function startServiceDay(
   }
 
   const window = await resolveServiceWindow(ctx, args.serviceStartAt);
-  await ctx.scheduler.runAt(window.cutoffAt, internal.expectations.sweepMissed, {
-    schoolId: args.schoolId,
-    serviceDate: args.serviceDate,
-  });
+  const day = { schoolId: args.schoolId, serviceDate: args.serviceDate };
+  await ctx.scheduler.runAt(window.cutoffAt, internal.expectations.sweepMissed, day);
+  const stalledCheckAt = window.windowStart + (window.windowEnd - window.windowStart) * STALLED_CHECK_AT_WINDOW_FRACTION;
+  await ctx.scheduler.runAt(stalledCheckAt, internal.monitor.checkStalled, day);
 
   return await materialiseStudentsPage(ctx, {
     schoolId: args.schoolId,
