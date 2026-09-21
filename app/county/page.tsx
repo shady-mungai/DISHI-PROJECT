@@ -8,13 +8,11 @@ import { Centered, UserGate } from "@/app/components/SchoolGate";
 import { Stat } from "@/app/components/Stat";
 import { useQuery } from "convex/react";
 import { useState } from "react";
+import { ALERT_CLASS, BUTTON_CLASS, DATE_CLASS, PAGE_CLASS, ROW_CLASS, SECTION_TITLE_CLASS, TITLE_CLASS } from "@/app/components/ui";
 
-const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
-const DATE_CLASS = "rounded border border-zinc-300 px-2 py-1 text-base font-normal";
-const ROW_CLASS = "grid grid-cols-8 gap-2 rounded border border-zinc-200 px-3 py-2";
-const ALERT_CLASS = "rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700";
-const DRILL_CLASS = "text-left underline decoration-dotted hover:text-black";
-const EVENT_CLASS = "flex flex-wrap gap-3 rounded border border-zinc-200 px-3 py-2 font-mono text-xs";
+const DRILL_CLASS = "cursor-pointer text-left underline decoration-dotted hover:text-green";
+const EVENT_CLASS = `${ROW_CLASS} font-mono text-xs`;
+const TABLE_ROW_CLASS = "grid min-h-11 grid-cols-8 items-center gap-2 rounded-control bg-cream-light px-3 py-2";
 const DEFAULT_PERIOD_DAYS = 7;
 const COUNTY_ROLES = new Set(["county", "admin"]);
 
@@ -66,9 +64,9 @@ function CountyPanel() {
     : [];
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-8">
+    <div className={PAGE_CLASS}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">County — reporting period</h1>
+        <h1 className={TITLE_CLASS}>County — reporting period</h1>
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={DATE_CLASS} />
         to
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={DATE_CLASS} />
@@ -82,9 +80,11 @@ function CountyPanel() {
         </p>
       ))}
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Variance by school, largest first</h2>
-        {overview?.rows.length === 0 && <p className="text-sm text-zinc-500">No active schools.</p>}
-        <div className={`${ROW_CLASS} border-0 text-sm text-zinc-500`}>
+        <h2 className={SECTION_TITLE_CLASS}>Variance by school, largest first</h2>
+        {overview?.rows.length === 0 && <p className="text-sm text-ink/60">No active schools.</p>}
+        <div className="overflow-x-auto">
+        <div className="min-w-[720px]">
+        <div className="grid grid-cols-8 gap-2 px-3 text-sm text-ink/60">
           <span>School</span>
           <span>Days</span>
           <span>Dispatched</span>
@@ -96,13 +96,13 @@ function CountyPanel() {
         </div>
         <ul className="flex flex-col gap-1 text-sm">
           {overview?.rows.map((row) => (
-            <li key={row.schoolId} className={ROW_CLASS}>
+            <li key={row.schoolId} className={TABLE_ROW_CLASS}>
               <span className="font-mono">{row.schoolCode}</span>
               <span>{row.days}</span>
               <DrillButton value={row.dispatched} onClick={() => setDrill({ schoolId: row.schoolId, schoolCode: row.schoolCode, type: DRILL_TYPES.dispatched })} />
               <DrillButton value={row.confirmed} onClick={() => setDrill({ schoolId: row.schoolId, schoolCode: row.schoolCode, type: DRILL_TYPES.confirmed })} />
               <DrillButton value={row.consumed} onClick={() => setDrill({ schoolId: row.schoolId, schoolCode: row.schoolCode, type: DRILL_TYPES.consumed })} />
-              <span className={Math.abs(row.variancePct) > (overview?.thresholds.varianceTolerancePct ?? 0) ? "font-semibold text-red-600" : ""}>
+              <span className={Math.abs(row.variancePct) > (overview?.thresholds.varianceTolerancePct ?? 0) ? "font-semibold text-error" : ""}>
                 {row.variance} ({row.variancePct}%)
               </span>
               <DrillButton value={`${row.streakDays}d`} onClick={() => setDrill({ schoolId: row.schoolId, schoolCode: row.schoolCode, type: DRILL_TYPES.streak })} />
@@ -110,11 +110,13 @@ function CountyPanel() {
             </li>
           ))}
         </ul>
+        </div>
+        </div>
       </section>
       {drill && <DrillPanel drill={drill} from={from} to={to} onClose={() => setDrill(null)} />}
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Programme totals</h2>
-        <div className="grid grid-cols-4 gap-4">
+        <h2 className={SECTION_TITLE_CLASS}>Programme totals</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <Stat label="Schools active" value={overview?.totals.schoolsActive} />
           <Stat label="Meals served" value={overview?.totals.mealsServed} />
           <Stat label="Guardians reached" value={overview?.totals.guardiansReached} />
@@ -138,19 +140,19 @@ function DrillPanel({ drill, from, to, onClose }: { drill: Drill; from: string; 
   const events = useQuery(api.county.eventsFor, { schoolId: drill.schoolId, type: drill.type, from, to });
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="font-semibold">
+      <h2 className={SECTION_TITLE_CLASS}>
         {drill.schoolCode} · {drill.type} · {events?.length ?? "…"} events{" "}
-        <button type="button" className="text-sm font-normal text-zinc-500 underline" onClick={onClose}>
+        <button type="button" className="text-sm font-normal text-ink/60 underline" onClick={onClose}>
           close
         </button>
       </h2>
-      {events?.length === 0 && <p className="text-sm text-zinc-500">No events in this period.</p>}
+      {events?.length === 0 && <p className="text-sm text-ink/60">No events in this period.</p>}
       <ul className="flex flex-col gap-1">
         {events?.map((event) => (
           <li key={event._id} className={EVENT_CLASS}>
-            <span className="text-zinc-500">{new Date(event.occurredAt).toLocaleString()}</span>
+            <span className="text-ink/60">{new Date(event.occurredAt).toLocaleString()}</span>
             <span>{event.eventId}</span>
-            <span className="flex-1 text-zinc-500">{JSON.stringify(event.payload)}</span>
+            <span className="flex-1 text-ink/60">{JSON.stringify(event.payload)}</span>
           </li>
         ))}
       </ul>

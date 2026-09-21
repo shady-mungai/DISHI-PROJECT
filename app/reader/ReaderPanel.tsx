@@ -8,15 +8,8 @@ import type { FormEvent } from "react";
 import { useCallback, useState } from "react";
 import type { IngestResult, ReaderDevice } from "./useReader";
 import { useNfcScanner, useReaderDevice, useTapQueue } from "./useReader";
+import { BUTTON_CLASS, INPUT_CLASS, MUTED_CLASS, PAGE_CLASS, PANEL_CLASS, SECONDARY_BUTTON_CLASS, TITLE_CLASS } from "@/app/components/ui";
 
-const PAGE_CLASS = "flex flex-1 flex-col gap-4 p-4 max-w-md mx-auto w-full";
-const FILLED_CLASS = "bg-black text-white dark:bg-white dark:text-black";
-const PRIMARY_BUTTON_CLASS = `rounded px-4 py-3 text-lg disabled:opacity-50 ${FILLED_CLASS}`;
-const SECONDARY_BUTTON_CLASS = "rounded border border-zinc-300 px-3 py-2 text-zinc-500 dark:border-zinc-700";
-const ACTIVE_TAB_CLASS = `rounded px-3 py-2 ${FILLED_CLASS}`;
-const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2 w-full";
-const RESULT_CLASS = "rounded border border-zinc-200 p-4 text-center";
-const MUTED_CLASS = "text-sm text-zinc-500";
 
 type Mode = "serve" | "assign";
 
@@ -36,12 +29,12 @@ export default function ReaderPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   if (!device) {
     return (
       <div className={PAGE_CLASS}>
-        <h1 className="text-xl font-semibold">Dishi Reader</h1>
+        <h1 className={TITLE_CLASS}>Dishi Reader</h1>
         <p className={MUTED_CLASS}>This phone is not registered as a reader for your school yet.</p>
-        <button type="button" onClick={register} className={PRIMARY_BUTTON_CLASS}>
+        <button type="button" onClick={register} className={BUTTON_CLASS}>
           Register this phone
         </button>
-        {provisionError && <p className="text-sm text-red-600">{provisionError}</p>}
+        {provisionError && <p className="text-sm text-error">{provisionError}</p>}
       </div>
     );
   }
@@ -72,28 +65,28 @@ function Scanner({ schoolId, device }: { schoolId: Id<"schools">; device: Reader
   return (
     <div className={PAGE_CLASS}>
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Dishi Reader</h1>
+        <h1 className={TITLE_CLASS}>Dishi Reader</h1>
         <span className={MUTED_CLASS}>{queue.length > 0 ? `${queue.length} queued` : "synced"}</span>
       </div>
 
       <div className="flex gap-2">
-        <button type="button" aria-pressed={mode === "serve"} onClick={() => setMode("serve")} className={mode === "serve" ? ACTIVE_TAB_CLASS : SECONDARY_BUTTON_CLASS}>
+        <button type="button" aria-pressed={mode === "serve"} onClick={() => setMode("serve")} className={mode === "serve" ? BUTTON_CLASS : SECONDARY_BUTTON_CLASS}>
           Serve
         </button>
-        <button type="button" aria-pressed={mode === "assign"} onClick={() => setMode("assign")} className={mode === "assign" ? ACTIVE_TAB_CLASS : SECONDARY_BUTTON_CLASS}>
+        <button type="button" aria-pressed={mode === "assign"} onClick={() => setMode("assign")} className={mode === "assign" ? BUTTON_CLASS : SECONDARY_BUTTON_CLASS}>
           Assign tag
         </button>
       </div>
 
       {!supported && <ManualUidInput onSubmit={handleTag} />}
       {supported && !scanning && (
-        <button type="button" onClick={startScanning} className={PRIMARY_BUTTON_CLASS}>
+        <button type="button" onClick={startScanning} className={BUTTON_CLASS}>
           Start scanning
         </button>
       )}
-      {scanning && <p className={RESULT_CLASS}>Hold a tag to the back of the phone</p>}
-      {scanError && <p className="text-sm text-red-600">{scanError}</p>}
-      {flushError && <p className="text-sm text-amber-600">Offline — taps are queued ({flushError})</p>}
+      {scanning && <p className={PANEL_CLASS}>Hold a tag to the back of the phone</p>}
+      {scanError && <p className="text-sm text-error">{scanError}</p>}
+      {flushError && <p className="text-sm text-orange">Offline — taps are queued ({flushError})</p>}
 
       {mode === "serve" && <LastResult results={lastResults} nameByTag={nameByTag} />}
       {mode === "assign" && scannedUid && (
@@ -116,7 +109,7 @@ function ManualUidInput({ onSubmit }: { onSubmit: (uid: string) => void }) {
     <form onSubmit={submit} className="flex flex-col gap-2">
       <p className={MUTED_CLASS}>Web NFC needs Chrome on Android. Type or paste a tag UID instead.</p>
       <input value={value} onChange={(event) => setValue(event.target.value)} placeholder="04:a3:b2:c1:d5:e6:80" className={INPUT_CLASS} />
-      <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+      <button type="submit" className={BUTTON_CLASS}>
         Submit tag
       </button>
     </form>
@@ -130,8 +123,8 @@ function LastResult({ results, nameByTag }: { results: IngestResult[]; nameByTag
   }
   const name = nameByTag.get(last.tagUid) ?? "Unknown tag";
   return (
-    <div className={RESULT_CLASS}>
-      <p className="text-2xl font-semibold">{last.status}</p>
+    <div className={PANEL_CLASS}>
+      <p className="text-2xl font-semibold text-green">{last.status}</p>
       <p>{name}</p>
       {last.reason && <p className={MUTED_CLASS}>{last.reason}</p>}
     </div>
@@ -166,7 +159,7 @@ function AssignForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
-      <p className={RESULT_CLASS}>{tagUid}</p>
+      <p className={PANEL_CLASS}>{tagUid}</p>
       <select value={studentId} onChange={(event) => setStudentId(event.target.value as Id<"students">)} className={INPUT_CLASS} required>
         <option value="">Choose a child</option>
         {students.map((student) => (
@@ -176,7 +169,7 @@ function AssignForm({
           </option>
         ))}
       </select>
-      <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+      <button type="submit" className={BUTTON_CLASS}>
         Assign
       </button>
       {message && <p className={MUTED_CLASS}>{message}</p>}

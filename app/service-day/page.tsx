@@ -11,11 +11,9 @@ import { RosterPanel } from "@/app/service-day/RosterPanel";
 import { useAction, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useState } from "react";
+import { BUTTON_CLASS, DATE_CLASS, PAGE_CLASS, ROW_CLASS, SECTION_TITLE_CLASS } from "@/app/components/ui";
 
-const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
-const DATE_CLASS = "rounded border border-zinc-300 px-2 py-1 text-base font-normal";
-const NOTIFICATION_CLASS = "flex gap-3 rounded border border-zinc-200 px-3 py-2";
-const FIELD_CLASS = "w-24 rounded border border-zinc-300 px-2 py-1";
+const FIELD_CLASS = "w-24 rounded border border-green/40 px-2 py-1";
 const DEFAULT_SEED = 1;
 const DEFAULT_NO_SHOWS = 3;
 const DEFAULT_BATCH_SIZE = 1;
@@ -74,31 +72,31 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-8">
-      <label className="flex items-center gap-3 text-lg font-semibold">
+    <div className={PAGE_CLASS}>
+      <label className="flex items-center gap-3 text-lg font-semibold text-green">
         Service day
         <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} className={DATE_CLASS} />
       </label>
-      <p className="text-5xl font-semibold">
-        {summary?.fulfilled ?? "…"} <span className="text-2xl text-zinc-500">/ {expected ?? "…"} served</span>
+      <p className="text-5xl font-semibold text-green">
+        {summary?.fulfilled ?? "…"} <span className="text-2xl text-ink/60">/ {expected ?? "…"} served</span>
       </p>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat label="Pending" value={summary?.pending} />
         <Stat label="Served" value={summary?.fulfilled} />
         <Stat label="Missed" value={summary?.missed} />
         <Stat label={`Forecast ${addDays(serviceDate, 1)}`} value={forecast ? `${forecast.portions} (${forecast.confidence})` : "—"} />
       </div>
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">
+        <h2 className={SECTION_TITLE_CLASS}>
           Deliveries today · <Link href="/deliveries" className="underline">confirm or dispute</Link>
         </h2>
-        {deliveries?.length === 0 && <p className="text-sm text-zinc-500">None declared.</p>}
+        {deliveries?.length === 0 && <p className="text-sm text-ink/60">None declared.</p>}
         <ul className="flex flex-col gap-1 text-sm">
           {deliveries?.map((delivery) => (
-            <li key={delivery._id} className={NOTIFICATION_CLASS}>
+            <li key={delivery._id} className={ROW_CLASS}>
               <span className="font-mono">{delivery.docketRef}</span>
               <span className="flex-1">{delivery.portions} portions</span>
-              <span className="text-zinc-500">{delivery.status}</span>
+              <span className="text-ink/60">{delivery.status}</span>
             </li>
           ))}
         </ul>
@@ -122,16 +120,16 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
           Simulate taps
         </button>
       </div>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
+      {message && <p className="text-sm text-ink/70">{message}</p>}
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Recent notifications</h2>
-        {notifications?.length === 0 && <p className="text-sm text-zinc-500">None yet.</p>}
+        <h2 className={SECTION_TITLE_CLASS}>Recent notifications</h2>
+        {notifications?.length === 0 && <p className="text-sm text-ink/60">None yet.</p>}
         <ul className="flex flex-col gap-1 text-sm">
           {notifications?.map((notification) => (
-            <li key={notification._id} className={NOTIFICATION_CLASS}>
-              <span className="font-mono text-zinc-500">{notification.maskedMsisdn}</span>
+            <li key={notification._id} className={ROW_CLASS}>
+              <span className="font-mono text-ink/60">{notification.maskedMsisdn}</span>
               <span className="flex-1">{notification.body}</span>
-              <span className="text-zinc-500">
+              <span className="text-ink/60">
                 {notification.suppressionReason ?? notification.failureReason ?? notification.status}
               </span>
             </li>
@@ -139,16 +137,16 @@ function ServiceDayPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         </ul>
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">SMS spend today</h2>
-        {spend?.length === 0 && <p className="text-sm text-zinc-500">Nothing sent yet.</p>}
-        {spend && spend.length > 0 && <p className="text-sm text-zinc-500">{volumeReductionLabel(spend)}</p>}
+        <h2 className={SECTION_TITLE_CLASS}>SMS spend today</h2>
+        {spend?.length === 0 && <p className="text-sm text-ink/60">Nothing sent yet.</p>}
+        {spend && spend.length > 0 && <p className="text-sm text-ink/60">{volumeReductionLabel(spend)}</p>}
         <ul className="flex flex-col gap-1 text-sm">
           {spend?.map((row) => (
-            <li key={row.ruleKey} className={NOTIFICATION_CLASS}>
+            <li key={row.ruleKey} className={ROW_CLASS}>
               <span className="flex-1 font-mono">{row.ruleKey}</span>
               <span>{row.sent} sent</span>
               <span>{row.suppressed} suppressed</span>
-              <span className="text-zinc-500">KES {row.costKes.toFixed(2)}</span>
+              <span className="text-ink/60">KES {row.costKes.toFixed(2)}</span>
             </li>
           ))}
         </ul>
@@ -172,7 +170,7 @@ function volumeReductionLabel(rows: SpendRow[]): string {
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (next: number) => void }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-zinc-500">{label}</span>
+      <span className="text-ink/60">{label}</span>
       <input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className={FIELD_CLASS} />
     </label>
   );

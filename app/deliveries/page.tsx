@@ -8,13 +8,8 @@ import { Stat } from "@/app/components/Stat";
 import { useMutation, useQuery } from "convex/react";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { BUTTON_CLASS, CODE_CLASS, DATE_CLASS, INPUT_CLASS, PAGE_CLASS, ROW_CLASS, SECONDARY_BUTTON_CLASS, SECTION_TITLE_CLASS, TITLE_CLASS } from "@/app/components/ui";
 
-const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
-const SECONDARY_BUTTON_CLASS = "rounded border border-zinc-300 px-3 py-2 disabled:opacity-50";
-const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2";
-const DATE_CLASS = "rounded border border-zinc-300 px-2 py-1 text-base font-normal";
-const ROW_CLASS = "flex flex-wrap gap-3 rounded border border-zinc-200 px-3 py-2";
-const CODE_CLASS = "rounded bg-zinc-100 px-3 py-2 font-mono text-2xl tracking-widest";
 const PAYMENT_FILE_LOOKBACK_DAYS = 30;
 
 export default function DeliveriesPage() {
@@ -85,8 +80,8 @@ function SupplierPanel() {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4 p-8">
-      <h1 className="text-lg font-semibold">Declare a dispatch</h1>
+    <form onSubmit={submit} className={PAGE_CLASS}>
+      <h1 className={TITLE_CLASS}>Declare a dispatch</h1>
       <select required value={schoolId} onChange={(e) => setSchoolId(e.target.value as Id<"schools">)} className={INPUT_CLASS}>
         <option value="">Choose school</option>
         {schools?.map((school) => (
@@ -105,7 +100,7 @@ function SupplierPanel() {
       <button type="submit" disabled={busy} className={BUTTON_CLASS}>
         Declare dispatch
       </button>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
+      {message && <p className="text-sm text-ink/70">{message}</p>}
       {confirmCode && <p className={CODE_CLASS}>{confirmCode}</p>}
     </form>
   );
@@ -145,13 +140,13 @@ function SchoolPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-8">
-      <label className="flex items-center gap-3 text-lg font-semibold">
+    <div className={PAGE_CLASS}>
+      <label className="flex items-center gap-3 text-lg font-semibold text-green">
         Service day
         <input type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} className={DATE_CLASS} />
       </label>
       <section className="flex flex-col gap-3">
-        <h2 className="font-semibold">Confirm a delivery</h2>
+        <h2 className={SECTION_TITLE_CLASS}>Confirm a delivery</h2>
         <input inputMode="numeric" placeholder="One-time code" value={code} onChange={(e) => setCode(e.target.value)} className={INPUT_CLASS} />
         <input type="number" min={0} placeholder="Portions received" value={portionsReceived || ""} onChange={(e) => setPortionsReceived(Number(e.target.value))} className={INPUT_CLASS} />
         <input placeholder="Note (for a dispute)" value={note} onChange={(e) => setNote(e.target.value)} className={INPUT_CLASS} />
@@ -163,35 +158,35 @@ function SchoolPanel({ schoolId }: { schoolId: Id<"schools"> }) {
             Dispute
           </button>
         </div>
-        {message && <p className="text-sm text-zinc-600">{message}</p>}
+        {message && <p className="text-sm text-ink/70">{message}</p>}
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Deliveries on {serviceDate}</h2>
-        {deliveries?.length === 0 && <p className="text-sm text-zinc-500">None declared.</p>}
+        <h2 className={SECTION_TITLE_CLASS}>Deliveries on {serviceDate}</h2>
+        {deliveries?.length === 0 && <p className="text-sm text-ink/60">None declared.</p>}
         <ul className="flex flex-col gap-1 text-sm">
           {deliveries?.map((delivery) => (
             <li key={delivery._id} className={ROW_CLASS}>
               <span className="font-mono">{delivery.docketRef}</span>
               <span>{delivery.portions} dispatched</span>
               {delivery.portionsReceived !== undefined && <span>{delivery.portionsReceived} received</span>}
-              <span className="flex-1 text-zinc-500">{delivery.status}</span>
-              {delivery.note && <span className="text-zinc-500">{delivery.note}</span>}
+              <span className="flex-1 text-ink/60">{delivery.status}</span>
+              {delivery.note && <span className="text-ink/60">{delivery.note}</span>}
             </li>
           ))}
         </ul>
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Tomorrow&apos;s forecast ({tomorrow})</h2>
-        <p className="text-3xl font-semibold">
-          {forecast ? `${forecast.portions} portions` : "—"} {forecast && <span className="text-base text-zinc-500">{forecast.confidence} confidence</span>}
+        <h2 className={SECTION_TITLE_CLASS}>Tomorrow&apos;s forecast ({tomorrow})</h2>
+        <p className="text-3xl font-semibold text-green">
+          {forecast ? `${forecast.portions} portions` : "—"} {forecast && <span className="text-base text-ink/60">{forecast.confidence} confidence</span>}
         </p>
         <button type="button" disabled={busy} className={SECONDARY_BUTTON_CLASS} onClick={() => void trigger(describeForecast)}>
           Run forecast now
         </button>
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Reconciliation</h2>
-        <div className="grid grid-cols-4 gap-4">
+        <h2 className={SECTION_TITLE_CLASS}>Reconciliation</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <Stat label="Dispatched" value={reconciliation?.dispatched} />
           <Stat label="Confirmed" value={reconciliation?.confirmed} />
           <Stat label="Eaten" value={reconciliation?.consumed} />
@@ -224,8 +219,8 @@ function PaymentFilePanel() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-8">
-      <h1 className="text-lg font-semibold">Payment file — confirmed deliveries only</h1>
+    <div className={PAGE_CLASS}>
+      <h1 className={TITLE_CLASS}>Payment file — confirmed deliveries only</h1>
       <div className="flex flex-wrap items-center gap-3">
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={DATE_CLASS} />
         to
@@ -234,7 +229,7 @@ function PaymentFilePanel() {
           Download CSV
         </button>
       </div>
-      {file?.lines.length === 0 && <p className="text-sm text-zinc-500">No confirmed deliveries in this range.</p>}
+      {file?.lines.length === 0 && <p className="text-sm text-ink/60">No confirmed deliveries in this range.</p>}
       <ul className="flex flex-col gap-1 text-sm">
         {file?.lines.map((line) => (
           <li key={`${line.schoolCode}:${line.serviceDate}:${line.docketRef}`} className={ROW_CLASS}>
@@ -242,11 +237,11 @@ function PaymentFilePanel() {
             <span>{line.serviceDate}</span>
             <span className="flex-1 font-mono">{line.docketRef}</span>
             <span>{line.portionsConfirmed} portions</span>
-            <span className="text-zinc-500">KES {line.amountKes.toFixed(2)}</span>
+            <span className="text-ink/60">KES {line.amountKes.toFixed(2)}</span>
           </li>
         ))}
       </ul>
-      {total !== undefined && total > 0 && <p className="font-semibold">Total KES {total.toFixed(2)}</p>}
+      {total !== undefined && total > 0 && <p className="font-semibold text-green">Total KES {total.toFixed(2)}</p>}
     </div>
   );
 }

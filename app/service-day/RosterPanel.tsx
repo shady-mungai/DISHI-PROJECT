@@ -6,10 +6,8 @@ import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { BUTTON_CLASS, INPUT_CLASS, SECONDARY_BUTTON_CLASS, SECTION_TITLE_CLASS } from "@/app/components/ui";
 
-const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
-const SECONDARY_BUTTON_CLASS = "rounded border border-zinc-300 px-3 py-2 disabled:opacity-50";
-const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2";
 const DEFAULT_RELATIONSHIP = "guardian";
 
 // SC-06: left / joined here, tag reissue on /reader. All take effect on the
@@ -62,7 +60,7 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="font-semibold">Roster corrections</h2>
+      <h2 className={SECTION_TITLE_CLASS}>Roster corrections</h2>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <select value={leavingId} onChange={(e) => setLeavingId(e.target.value as Id<"students">)} className={INPUT_CLASS}>
           <option value="">Child who left</option>
@@ -85,10 +83,10 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
           Add child
         </button>
       </form>
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-ink/60">
         Tag lost or reissued? <Link href="/reader" className="underline">Assign a tag on the reader page</Link>.
       </p>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
+      {message && <p className="text-sm text-ink/70">{message}</p>}
     </section>
   );
 }

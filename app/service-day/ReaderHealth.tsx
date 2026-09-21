@@ -4,9 +4,9 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
+import { ROW_CLASS, SECTION_TITLE_CLASS } from "@/app/components/ui";
 
-const ROW_CLASS = "flex flex-wrap gap-3 rounded border border-zinc-200 px-3 py-2";
-const SILENT_CLASS = "font-semibold text-red-600";
+const SILENT_CLASS = "font-semibold text-error";
 const CLOCK_TICK_MS = 60_000;
 
 function useNow(): number {
@@ -27,15 +27,15 @@ export function ReaderHealth({ schoolId }: { schoolId: Id<"schools"> }) {
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="font-semibold">Readers</h2>
+      <h2 className={SECTION_TITLE_CLASS}>Readers</h2>
       {silent.length > 0 && <p className={SILENT_CLASS}>{silent.length} reader(s) have stopped reporting.</p>}
-      {readers?.length === 0 && <p className="text-sm text-zinc-500">No readers provisioned.</p>}
+      {readers?.length === 0 && <p className="text-sm text-ink/60">No readers provisioned.</p>}
       <ul className="flex flex-col gap-1 text-sm">
         {readers?.map((reader) => (
           <li key={reader.deviceRef} className={ROW_CLASS}>
             <span className="flex-1 font-mono">{reader.deviceRef}</span>
-            <span className="text-zinc-500">{reader.firmwareVersion}</span>
-            <span className={silent.includes(reader) ? SILENT_CLASS : "text-zinc-500"}>
+            <span className="text-ink/60">{reader.firmwareVersion}</span>
+            <span className={silent.includes(reader) ? SILENT_CLASS : "text-ink/60"}>
               {reader.lastSeenAt === undefined ? "never synced" : `seen ${new Date(reader.lastSeenAt).toLocaleString()}`}
             </span>
           </li>

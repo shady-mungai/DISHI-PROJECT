@@ -6,12 +6,11 @@ import { authClient } from "@/app/auth-client";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { BUTTON_CLASS, INPUT_CLASS, TITLE_CLASS } from "@/app/components/ui";
 
-const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2";
-const PRIMARY_BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
 
 export function Centered({ children }: { children: ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center p-8 text-zinc-500">{children}</div>;
+  return <div className="flex flex-1 items-center justify-center p-8 text-ink/60">{children}</div>;
 }
 
 // Renders `children(user)` only once the viewer is signed in and has a profile.
@@ -66,10 +65,11 @@ function SignInForm() {
   return (
     <Centered>
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-3">
-        <h1 className="text-lg font-semibold">{mode === "sign-in" ? "Sign in" : "Create an account"}</h1>
+        <h1 className={TITLE_CLASS}>{mode === "sign-in" ? "Sign in" : "Create an account"}</h1>
         <input
           type="email"
           required
+          aria-label="Email"
           placeholder="Email"
           value={email}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setEmail(event.target.value)}
@@ -78,19 +78,20 @@ function SignInForm() {
         <input
           type="password"
           required
+          aria-label="Password"
           placeholder="Password"
           value={password}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value)}
           className={INPUT_CLASS}
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={pending} className={PRIMARY_BUTTON_CLASS}>
+        {error && <p className="text-sm text-error">{error}</p>}
+        <button type="submit" disabled={pending} className={BUTTON_CLASS}>
           {mode === "sign-in" ? "Sign in" : "Sign up"}
         </button>
         <button
           type="button"
           onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
-          className="text-sm text-zinc-500 underline"
+          className="text-sm text-ink/60 underline"
         >
           {mode === "sign-in" ? "Need an account? Sign up" : "Have an account? Sign in"}
         </button>

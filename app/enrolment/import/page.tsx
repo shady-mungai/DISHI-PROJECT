@@ -6,6 +6,7 @@ import { authClient } from "@/app/auth-client";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { PAGE_CLASS, TITLE_CLASS } from "@/app/components/ui";
 
 type RosterRowDraft = {
   fullName: string;
@@ -38,7 +39,7 @@ export default function EnrolmentImportPage() {
 }
 
 function Centered({ children }: { children: ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center p-8 text-zinc-500">{children}</div>;
+  return <div className="flex flex-1 items-center justify-center p-8 text-ink/60">{children}</div>;
 }
 
 function SignInForm() {
@@ -70,31 +71,33 @@ function SignInForm() {
   return (
     <Centered>
       <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-3">
-        <h1 className="text-lg font-semibold">{mode === "sign-in" ? "Sign in" : "Create an account"}</h1>
+        <h1 className={TITLE_CLASS}>{mode === "sign-in" ? "Sign in" : "Create an account"}</h1>
         <input
           type="email"
           required
+          aria-label="Email"
           placeholder="Email"
           value={email}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setEmail(event.target.value)}
-          className="rounded border border-zinc-300 px-3 py-2"
+          className="rounded border border-green/40 px-3 py-2"
         />
         <input
           type="password"
           required
+          aria-label="Password"
           placeholder="Password"
           value={password}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value)}
-          className="rounded border border-zinc-300 px-3 py-2"
+          className="rounded border border-green/40 px-3 py-2"
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={pending} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50">
+        {error && <p className="text-sm text-error">{error}</p>}
+        <button type="submit" disabled={pending} className="rounded bg-green px-3 py-2 text-cream disabled:opacity-50">
           {mode === "sign-in" ? "Sign in" : "Sign up"}
         </button>
         <button
           type="button"
           onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
-          className="text-sm text-zinc-500 underline"
+          className="text-sm text-ink/60 underline"
         >
           {mode === "sign-in" ? "Need an account? Sign up" : "Have an account? Sign in"}
         </button>
@@ -221,7 +224,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
     return (
       <Centered>
         <div className="flex flex-col items-center gap-3 text-center">
-          <h1 className="text-lg font-semibold">Upload the enrolment PDF</h1>
+          <h1 className={TITLE_CLASS}>Upload the enrolment PDF</h1>
           <input
             type="file"
             accept="application/pdf"
@@ -233,8 +236,8 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
               }
             }}
           />
-          {busy && <p className="text-sm text-zinc-500">Reading the PDF…</p>}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {busy && <p className="text-sm text-ink/60">Reading the PDF…</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
         </div>
       </Centered>
     );
@@ -251,15 +254,15 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-8">
-      <h1 className="text-lg font-semibold">Confirm the roster</h1>
-      <p className="text-sm text-zinc-500">
+    <div className={PAGE_CLASS}>
+      <h1 className={TITLE_CLASS}>Confirm the roster</h1>
+      <p className="text-sm text-ink/60">
         Check every name the parser guessed, and fill in each guardian&apos;s phone number.
       </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead>
-            <tr className="text-left text-zinc-500">
+            <tr className="text-left text-ink/60">
               <th className="p-2">Full name</th>
               <th className="p-2">Class</th>
               <th className="p-2">Guardian phone</th>
@@ -271,7 +274,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
           </thead>
           <tbody>
             {rows?.map((row, index) => (
-              <tr key={index} className="border-t border-zinc-200">
+              <tr key={index} className="border-t border-green/20">
                 <td className="p-1">
                   <RowInput value={row.fullName} onChange={(value) => updateRow(index, { fullName: value })} />
                 </td>
@@ -301,7 +304,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
                   />
                 </td>
                 <td className="p-1">
-                  <button type="button" onClick={() => removeRow(index)} className="text-zinc-400 hover:text-red-600">
+                  <button type="button" onClick={() => removeRow(index)} className="text-ink/50 hover:text-error">
                     Remove
                   </button>
                 </td>
@@ -311,18 +314,18 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
         </table>
       </div>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={addRow} className="rounded border border-zinc-300 px-3 py-1.5 text-sm">
+        <button type="button" onClick={addRow} className="rounded border border-green/40 px-3 py-1.5 text-sm">
           Add row
         </button>
         <button
           type="button"
           disabled={busy || !rows?.length}
           onClick={handleConfirm}
-          className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="rounded bg-green px-3 py-1.5 text-sm text-cream disabled:opacity-50"
         >
           Confirm roster ({rows?.length ?? 0})
         </button>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-error">{error}</p>}
       </div>
     </div>
   );
@@ -342,7 +345,7 @@ function RowInput({
       value={value}
       placeholder={placeholder}
       onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
-      className="w-full rounded border border-zinc-200 px-2 py-1"
+      className="w-full rounded border border-green/20 px-2 py-1"
     />
   );
 }

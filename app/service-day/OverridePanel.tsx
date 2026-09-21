@@ -4,10 +4,9 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
+import { BUTTON_CLASS, INPUT_CLASS, SECTION_TITLE_CLASS } from "@/app/components/ui";
 
-const BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
-const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2";
-const OVER_TOLERANCE_CLASS = "text-red-600";
+const OVER_TOLERANCE_CLASS = "text-error";
 
 const REASON_CODES = [
   { value: "forgotten_tag", label: "Forgotten tag" },
@@ -49,7 +48,7 @@ export function OverridePanel({ schoolId, serviceDate }: { schoolId: Id<"schools
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="font-semibold">Staff override</h2>
+      <h2 className={SECTION_TITLE_CLASS}>Staff override</h2>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <select value={studentId} onChange={(e) => setStudentId(e.target.value as Id<"students">)} className={INPUT_CLASS}>
           <option value="">Choose child</option>
@@ -70,9 +69,9 @@ export function OverridePanel({ schoolId, serviceDate }: { schoolId: Id<"schools
           Serve
         </button>
       </div>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
+      {message && <p className="text-sm text-ink/70">{message}</p>}
       {rate && (
-        <p className={`text-sm ${overTolerance ? OVER_TOLERANCE_CLASS : "text-zinc-500"}`}>
+        <p className={`text-sm ${overTolerance ? OVER_TOLERANCE_CLASS : "text-ink/60"}`}>
           Override rate {rate.ratePct}% ({rate.overrides} of {rate.served} meals, {rate.from} → {rate.to}); tolerance {rate.tolerancePct}%
         </p>
       )}
