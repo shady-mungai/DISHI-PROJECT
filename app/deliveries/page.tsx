@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { Centered, UserGate } from "@/app/components/SchoolGate";
+import { Stat } from "@/app/components/Stat";
 import { useMutation, useQuery } from "convex/react";
 import type { FormEvent } from "react";
 import { useState } from "react";
@@ -13,7 +14,6 @@ const SECONDARY_BUTTON_CLASS = "rounded border border-zinc-300 px-3 py-2 disable
 const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2";
 const DATE_CLASS = "rounded border border-zinc-300 px-2 py-1 text-base font-normal";
 const ROW_CLASS = "flex flex-wrap gap-3 rounded border border-zinc-200 px-3 py-2";
-const STAT_CLASS = "flex flex-col rounded border border-zinc-200 p-4";
 const CODE_CLASS = "rounded bg-zinc-100 px-3 py-2 font-mono text-2xl tracking-widest";
 const PAYMENT_FILE_LOOKBACK_DAYS = 30;
 
@@ -247,15 +247,6 @@ function PaymentFilePanel() {
         ))}
       </ul>
       {total !== undefined && total > 0 && <p className="font-semibold">Total KES {total.toFixed(2)}</p>}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string | undefined }) {
-  return (
-    <div className={STAT_CLASS}>
-      <span className="text-sm text-zinc-500">{label}</span>
-      <span className="text-3xl font-semibold">{value ?? "…"}</span>
     </div>
   );
 }

@@ -44,3 +44,5 @@ next-env.d.ts
 *.bak
 
 roster_seed_data.pdf
+# personal notes
+developer-notes.md

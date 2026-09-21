@@ -215,7 +215,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 
 **Sprint 3**
 - [x] D11 school dashboard — typecheck, lint, build, 99/99 tests green; `tests/schoolDashboard.test.ts` asserts an override is one countable meal with reason + staff id (a later tap is a duplicate), the tap-first case, own override rate, deactivation revoking the tag and dropping the child from tomorrow's expectations, and the silent-reader flag firing once per day; deployed to dev, settings + rules re-seeded (rules table was 4 short — the D8 wallet rules had never landed on dev)
-- [ ] D12 county dashboard
+- [x] D12 county dashboard — typecheck, lint, build, 104/104 tests green; `tests/countyDashboard.test.ts` asserts schools rank by |variance| not name, the streak counts consecutive out-of-tolerance reconciled days from the newest, today's reconciliation completing a streak emits `reconciliation.variance_exceeded` exactly once (recompute is a no-op), programme totals (schools, meals, distinct guardians reached, deliverability), and the CSV export mirrors the ranked view; `/county` drills any figure to its events via `county.eventsFor`. `integrity.override_rate_exceeded` fires from the same post-reconciliation hook
 - [ ] D13 supplier dashboard + stalled service
 - [ ] D14 admin console + dry-run replay
 - [ ] D15 audit, NFR verification, demo script, buffer

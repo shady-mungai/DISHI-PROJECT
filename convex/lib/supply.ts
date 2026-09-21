@@ -80,9 +80,13 @@ function csvCell(value: string | number): string {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
+export function toCsv(header: string[], rows: (string | number)[][]): string {
+  return [header, ...rows].map((row) => row.map(csvCell).join(CSV_SEPARATOR)).join(CSV_LINE_BREAK);
+}
+
 export function toPaymentCsv(lines: PaymentLine[]): string {
-  const rows = lines.map((line) =>
-    [line.schoolCode, line.serviceDate, line.docketRef, line.portionsConfirmed, line.rateKes, line.amountKes].map(csvCell).join(CSV_SEPARATOR),
+  return toCsv(
+    PAYMENT_FILE_HEADER,
+    lines.map((line) => [line.schoolCode, line.serviceDate, line.docketRef, line.portionsConfirmed, line.rateKes, line.amountKes]),
   );
-  return [PAYMENT_FILE_HEADER.join(CSV_SEPARATOR), ...rows].join(CSV_LINE_BREAK);
 }

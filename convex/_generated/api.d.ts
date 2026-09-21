@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as channels from "../channels.js";
+import type * as county from "../county.js";
 import type * as crons from "../crons.js";
 import type * as deliveries from "../deliveries.js";
 import type * as devices from "../devices.js";
@@ -25,6 +26,7 @@ import type * as lib_channels_celcom from "../lib/channels/celcom.js";
 import type * as lib_channels_console from "../lib/channels/console.js";
 import type * as lib_channels_index from "../lib/channels/index.js";
 import type * as lib_channels_types from "../lib/channels/types.js";
+import type * as lib_county from "../lib/county.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_deliveryReport from "../lib/deliveryReport.js";
 import type * as lib_enrolmentParser from "../lib/enrolmentParser.js";
@@ -63,6 +65,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   channels: typeof channels;
+  county: typeof county;
   crons: typeof crons;
   deliveries: typeof deliveries;
   devices: typeof devices;
@@ -78,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   "lib/channels/console": typeof lib_channels_console;
   "lib/channels/index": typeof lib_channels_index;
   "lib/channels/types": typeof lib_channels_types;
+  "lib/county": typeof lib_county;
   "lib/dates": typeof lib_dates;
   "lib/deliveryReport": typeof lib_deliveryReport;
   "lib/enrolmentParser": typeof lib_enrolmentParser;

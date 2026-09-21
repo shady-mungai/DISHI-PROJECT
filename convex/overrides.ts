@@ -95,6 +95,10 @@ async function countSchoolEvents(ctx: QueryCtx, key: { schoolId: Id<"schools">; 
   return rows.length;
 }
 
+export async function overrideTolerancePct(ctx: QueryCtx): Promise<number> {
+  return await readNumberSetting(ctx, SettingKey.OverrideRateTolerancePct, DEFAULT_OVERRIDE_TOLERANCE_PCT);
+}
+
 export type OverrideRate = { overrides: number; served: number; ratePct: number; tolerancePct: number; from: string; to: string };
 
 // SC-05 / GV-04: the school sees its own rate. Shared with the county view.
@@ -108,7 +112,7 @@ export async function overrideRate(ctx: QueryCtx, args: { schoolId: Id<"schools"
     overrides,
     served,
     ratePct: served === 0 ? 0 : Math.round((overrides / served) * PERCENT),
-    tolerancePct: await readNumberSetting(ctx, SettingKey.OverrideRateTolerancePct, DEFAULT_OVERRIDE_TOLERANCE_PCT),
+    tolerancePct: await overrideTolerancePct(ctx),
     from,
     to: args.to,
   };

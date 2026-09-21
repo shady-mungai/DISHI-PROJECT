@@ -7,6 +7,7 @@ const ROUTES = [
   { href: "/service-day", label: "School dashboard" },
   { href: "/reader", label: "Tap reader" },
   { href: "/deliveries", label: "Deliveries" },
+  { href: "/county", label: "County dashboard" },
 ] as const;
 
 export default function Home() {

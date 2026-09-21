@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { flagIntegrity } from "./county";
 import { countExpectations, isSchoolDay } from "./expectations";
 import { requireRole, requireSchoolScope } from "./lib/authz";
 import { addDays, toServiceDate } from "./lib/dates";
@@ -413,6 +414,7 @@ async function finaliseReconciliation(ctx: MutationCtx, args: ReconcileArgs): Pr
     schoolId: args.schoolId,
     serviceDate: args.serviceDate,
   });
+  await flagIntegrity(ctx, { schoolId: args.schoolId, serviceDate: args.serviceDate });
   return { status: "computed", ...totals };
 }
 

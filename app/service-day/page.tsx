@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { SchoolGate } from "@/app/components/SchoolGate";
+import { Stat } from "@/app/components/Stat";
 import { OverridePanel } from "@/app/service-day/OverridePanel";
 import { ReaderHealth } from "@/app/service-day/ReaderHealth";
 import { RosterPanel } from "@/app/service-day/RosterPanel";
@@ -18,7 +19,6 @@ const FIELD_CLASS = "w-24 rounded border border-zinc-300 px-2 py-1";
 const DEFAULT_SEED = 1;
 const DEFAULT_NO_SHOWS = 3;
 const DEFAULT_BATCH_SIZE = 1;
-const STAT_CLASS = "flex flex-col rounded border border-zinc-200 p-4";
 
 export default function ServiceDayPage() {
   return <SchoolGate>{(schoolId) => <ServiceDayPanel schoolId={schoolId} />}</SchoolGate>;
@@ -175,14 +175,5 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
       <span className="text-zinc-500">{label}</span>
       <input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className={FIELD_CLASS} />
     </label>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string | undefined }) {
-  return (
-    <div className={STAT_CLASS}>
-      <span className="text-sm text-zinc-500">{label}</span>
-      <span className="text-3xl font-semibold">{value ?? "…"}</span>
-    </div>
   );
 }
