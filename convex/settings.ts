@@ -27,6 +27,11 @@ export const SettingKey = {
   DeliveryConfirmWindowMinutes: "deliveryConfirmWindowMinutes",
   SupplierPortionRateKes: "supplierPortionRateKes",
   ReaderSilentHours: "readerSilentHours",
+  DeliveryMaxAttempts: "deliveryMaxAttempts",
+  DeliveryRetryBaseSeconds: "deliveryRetryBaseSeconds",
+  RetentionEventDays: "retentionEventDays",
+  RetentionNotificationDays: "retentionNotificationDays",
+  RetentionStudentDays: "retentionStudentDays",
 } as const;
 
 export const DEMO_SETTINGS: ReadonlyArray<{
@@ -54,6 +59,11 @@ export const DEMO_SETTINGS: ReadonlyArray<{
   { key: SettingKey.DeliveryConfirmWindowMinutes, value: 120, description: "Minutes after dispatch before a delivery is swept as unconfirmed" },
   { key: SettingKey.SupplierPortionRateKes, value: 25, description: "Amount paid to the supplier per confirmed portion" },
   { key: SettingKey.ReaderSilentHours, value: 20, description: "Hours without a reader sync before it is flagged silent" },
+  { key: SettingKey.DeliveryMaxAttempts, value: 3, description: "Delivery attempts before a transient gateway failure is recorded as failed" },
+  { key: SettingKey.DeliveryRetryBaseSeconds, value: 30, description: "First retry delay; doubles per attempt" },
+  { key: SettingKey.RetentionEventDays, value: 365, description: "Days operational events are kept (audit events are exempt)" },
+  { key: SettingKey.RetentionNotificationDays, value: 90, description: "Days notification rows (message bodies, MSISDNs) are kept" },
+  { key: SettingKey.RetentionStudentDays, value: 365, description: "Days after deactivation before a student record is de-identified" },
 ];
 
 export async function readNumberSetting(ctx: QueryCtx, key: string, fallback: number): Promise<number> {

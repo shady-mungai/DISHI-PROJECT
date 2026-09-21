@@ -2,6 +2,7 @@
 
 import { api } from "@/convex/_generated/api";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
+import { AuditPanel, MetricsPanel, RevokeButton, SettingsPanel } from "@/app/admin/OpsPanels";
 import { RulesPanel } from "@/app/admin/RulesPanel";
 import { Centered, UserGate } from "@/app/components/SchoolGate";
 import { Stat } from "@/app/components/Stat";
@@ -41,6 +42,8 @@ function AdminPanel() {
         to
         <input type="date" aria-label="To" value={to} onChange={(e) => setTo(e.target.value)} className={DATE_CLASS} />
       </div>
+
+      <MetricsPanel from={from} to={to} />
 
       <section className="flex flex-col gap-2">
         <h2 className={SECTION_TITLE_CLASS}>Deliverability by day</h2>
@@ -96,6 +99,8 @@ function AdminPanel() {
       <FleetPanel />
       <RulesPanel />
       <TracePanel />
+      <AuditPanel from={from} to={to} />
+      <SettingsPanel />
     </div>
   );
 }
@@ -122,6 +127,7 @@ function FleetPanel() {
               <span className={`flex-1 text-right ${silent ? OVER_CLASS : "text-ink/60"}`}>
                 {device.lastSeenAt === undefined ? "never synced" : `seen ${new Date(device.lastSeenAt).toLocaleString()}`}
               </span>
+              <RevokeButton deviceRef={device.deviceRef} revokedAt={device.revokedAt} />
             </li>
           );
         })}

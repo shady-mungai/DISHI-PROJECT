@@ -74,6 +74,7 @@ export default defineSchema({
     className: v.string(),
     status: v.union(v.literal("active"), v.literal("deactivated")),
     deactivationReason: v.optional(v.string()),
+    deactivatedAt: v.optional(v.number()),
   })
     .index("by_school_status", ["schoolId", "status"])
     .index("by_school_ref", ["schoolId", "studentRef"]),
@@ -115,6 +116,7 @@ export default defineSchema({
     queueDepth: v.number(),
     clockSkewSeconds: v.number(),
     lastSeenAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
   })
     .index("by_deviceRef", ["deviceRef"])
     .index("by_school", ["schoolId"]),
@@ -202,6 +204,7 @@ export default defineSchema({
     providerMessageId: v.optional(v.string()),
     failureReason: v.optional(v.string()),
     sentAt: v.optional(v.number()),
+    attempts: v.optional(v.number()),
   })
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_guardian", ["guardianId"])

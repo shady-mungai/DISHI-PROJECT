@@ -38,7 +38,7 @@ export async function deactivateStudent(
     return "already_inactive";
   }
   const now = Date.now();
-  await ctx.db.patch(student._id, { status: "deactivated", deactivationReason: args.reason });
+  await ctx.db.patch(student._id, { status: "deactivated", deactivationReason: args.reason, deactivatedAt: Date.now() });
   const tag = await ctx.db
     .query("tags")
     .withIndex("by_student_status", (q) => q.eq("studentId", student._id).eq("status", "active"))

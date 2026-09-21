@@ -71,7 +71,10 @@ export const getDeviceSecretHash = internalQuery({
       .query("devices")
       .withIndex("by_deviceRef", (q) => q.eq("deviceRef", args.deviceRef))
       .unique();
-    return device ? { secretHash: device.secretHash } : null;
+    if (!device || device.revokedAt !== undefined) {
+      return null;
+    }
+    return { secretHash: device.secretHash };
   },
 });
 

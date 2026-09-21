@@ -2,14 +2,16 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalQuery, mutation, query } from "./_generated/server";
-import type { QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { requireRole } from "./lib/authz";
 import { addDays, toServiceDate } from "./lib/dates";
+import { recordEvent } from "./lib/events";
 import { smsSegments } from "./lib/gsm7";
 import { maskMsisdn } from "./lib/mask";
+import { p95, spanDurations } from "./lib/metrics";
 import { evaluatePredicate, parsePredicate } from "./lib/predicate";
 import { assertSingleSegment, renderBody, resolveRecipients, type RuleSeed } from "./rules";
-import { eventPayload, localisedTemplates, notificationStatus } from "./schema";
+import { eventPayload, localisedTemplates, notificationStatus, settingValue } from "./schema";
 import { readNumberSetting, SettingKey } from "./settings";
 
 const ADMIN_ROLES = ["admin"] as const;
@@ -27,10 +29,43 @@ const PERCENT = 100;
 const BILLED_STATUSES = new Set<Doc<"notifications">["status"]>(["sent", "delivered"]);
 const ATTEMPTED_STATUSES = new Set<Doc<"notifications">["status"]>(["sent", "delivered", "failed"]);
 
+const SCHEMA_VERSION = 1;
+const MAX_SETTINGS = 100;
+const AUDIT_CAP = 500;
+const METRIC_SAMPLE_CAP = 2000;
+
 export const AdminFailure = {
   InvalidPredicate: "INVALID_PREDICATE",
   RuleNotFound: "RULE_NOT_FOUND",
+  DeviceNotFound: "DEVICE_NOT_FOUND",
+  SettingNotFound: "SETTING_NOT_FOUND",
 } as const;
+
+export const AuditType = {
+  RuleChanged: "admin.rule_changed",
+  RuleToggled: "admin.rule_toggled",
+  SettingChanged: "admin.setting_changed",
+  DeviceRevoked: "admin.device_revoked",
+} as const;
+
+// FR-802 / NFR-405: every administrative action is an event in the
+// append-only stream, attributed to the acting user. The retention purge
+// skips the admin.* prefix, so this log outlives operational data.
+const AUDITED_TYPES = [...Object.values(AuditType), "meal.override_served", "student.deactivated", "student.tag_assigned"] as const;
+
+async function recordAudit(ctx: MutationCtx, actor: Doc<"users">, type: string, payload: Record<string, string | number | boolean>): Promise<void> {
+  const now = Date.now();
+  const eventId = `${type}:${actor._id}:${now}`;
+  await recordEvent(ctx, {
+    eventId,
+    type,
+    occurredAt: now,
+    recordedAt: now,
+    schemaVersion: SCHEMA_VERSION,
+    correlationId: eventId,
+    payload: { actor_id: actor._id, actor_name: actor.displayName, ...payload },
+  });
+}
 
 type DateRange = { from: string; to: string };
 
@@ -102,7 +137,7 @@ export const upsertRule = mutation({
   args: ruleSpecValidator,
   returns: v.object({ ruleId: v.id("rules"), templateVersion: v.number() }),
   handler: async (ctx, spec: RuleSpec) => {
-    await requireRole(ctx, ADMIN_ROLES);
+    const actor = await requireRole(ctx, ADMIN_ROLES);
     const existing = await ctx.db
       .query("rules")
       .withIndex("by_key", (q) => q.eq("key", spec.key))
@@ -111,6 +146,7 @@ export const upsertRule = mutation({
     const templateVersion = existing ? existing.templateVersion + (templatesChanged ? 1 : 0) : 1;
     const row: RuleSeed = { ...spec, audience: "guardian", channel: "sms", templateVersion };
     assertValidRule(row);
+    await recordAudit(ctx, actor, AuditType.RuleChanged, { rule_key: spec.key, event_type: spec.eventType, predicate: spec.predicate, template_version: templateVersion, enabled: spec.enabled, created: existing === null });
     if (existing) {
       await ctx.db.patch(existing._id, row);
       return { ruleId: existing._id, templateVersion };
@@ -123,12 +159,166 @@ export const setRuleEnabled = mutation({
   args: { ruleId: v.id("rules"), enabled: v.boolean() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireRole(ctx, ADMIN_ROLES);
-    if (!(await ctx.db.get(args.ruleId))) {
+    const actor = await requireRole(ctx, ADMIN_ROLES);
+    const rule = await ctx.db.get(args.ruleId);
+    if (!rule) {
       throw new ConvexError(AdminFailure.RuleNotFound);
     }
     await ctx.db.patch(args.ruleId, { enabled: args.enabled });
+    await recordAudit(ctx, actor, AuditType.RuleToggled, { rule_key: rule.key, enabled: args.enabled });
     return null;
+  },
+});
+
+// ------------------------------------------------ settings, revocation, audit
+
+export const listSettings = query({
+  args: {},
+  returns: v.array(v.object({ key: v.string(), value: settingValue, description: v.string() })),
+  handler: async (ctx) => {
+    await requireRole(ctx, ADMIN_ROLES);
+    const rows = await ctx.db.query("settings").take(MAX_SETTINGS);
+    return rows.map((row) => ({ key: row.key, value: row.value, description: row.description })).sort((left, right) => left.key.localeCompare(right.key));
+  },
+});
+
+// NFR-505 retention periods and every other tolerance live here; changing
+// one is an audited admin action, not a deploy.
+export const setSetting = mutation({
+  args: { key: v.string(), value: settingValue },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const actor = await requireRole(ctx, ADMIN_ROLES);
+    const existing = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .unique();
+    if (!existing) {
+      throw new ConvexError(AdminFailure.SettingNotFound);
+    }
+    await ctx.db.patch(existing._id, { value: args.value });
+    await recordAudit(ctx, actor, AuditType.SettingChanged, { key: args.key, previous: existing.value, value: args.value });
+    return null;
+  },
+});
+
+// NFR-406: revocation is a flag the ingest route checks on every request, so
+// a lost reader is locked out on its next contact.
+export const revokeDevice = mutation({
+  args: { deviceRef: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const actor = await requireRole(ctx, ADMIN_ROLES);
+    const device = await ctx.db
+      .query("devices")
+      .withIndex("by_deviceRef", (q) => q.eq("deviceRef", args.deviceRef))
+      .unique();
+    if (!device) {
+      throw new ConvexError(AdminFailure.DeviceNotFound);
+    }
+    if (device.revokedAt !== undefined) {
+      return null;
+    }
+    await ctx.db.patch(device._id, { revokedAt: Date.now() });
+    await recordAudit(ctx, actor, AuditType.DeviceRevoked, { device_id: device.deviceRef, school_id: device.schoolId });
+    return null;
+  },
+});
+
+type AuditEntry = { _id: Id<"events">; type: string; occurredAt: number; payload: Doc<"events">["payload"] };
+
+export async function auditLog(ctx: QueryCtx, range: DateRange): Promise<AuditEntry[]> {
+  const { fromMs, toMs } = rangeMs(range);
+  const entries: AuditEntry[] = [];
+  for (const type of AUDITED_TYPES) {
+    const rows = await ctx.db
+      .query("events")
+      .withIndex("by_type_occurredAt", (q) => q.eq("type", type).gte("occurredAt", fromMs).lt("occurredAt", toMs))
+      .order("desc")
+      .take(AUDIT_CAP);
+    entries.push(...rows.map((row) => ({ _id: row._id, type: row.type, occurredAt: row.occurredAt, payload: row.payload })));
+  }
+  return entries.sort((left, right) => right.occurredAt - left.occurredAt).slice(0, AUDIT_CAP);
+}
+
+export const audit = query({
+  args: { from: v.string(), to: v.string() },
+  returns: v.array(v.object({ _id: v.id("events"), type: v.string(), occurredAt: v.number(), payload: eventPayload })),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ADMIN_ROLES);
+    return await auditLog(ctx, args);
+  },
+});
+
+// ------------------------------------------------------------- NFR-803 metrics
+
+export type Metrics = {
+  taps: number;
+  ingestionLagP95Ms: number;
+  enqueueLagP95Ms: number;
+  sweepDurationP95Ms: number;
+  sweeps: number;
+  evaluations: number;
+  suppressed: number;
+  deliveredPct: number;
+};
+
+// Ingestion lag = recordedAt − occurredAt on taps (NFR-102's first hop);
+// enqueue lag = notification row creation − its event's recordedAt; sweep
+// duration = spread of a school-day's meal.missed rows.
+export async function metricsReport(ctx: QueryCtx, range: DateRange): Promise<Metrics> {
+  const { fromMs, toMs } = rangeMs(range);
+  const taps = await ctx.db
+    .query("events")
+    .withIndex("by_type_occurredAt", (q) => q.eq("type", "meal.tapped").gte("occurredAt", fromMs).lt("occurredAt", toMs))
+    .take(METRIC_SAMPLE_CAP);
+  const missed = await ctx.db
+    .query("events")
+    .withIndex("by_type_occurredAt", (q) => q.eq("type", "meal.missed").gte("occurredAt", fromMs).lt("occurredAt", toMs))
+    .take(METRIC_SAMPLE_CAP);
+  const evaluated = await ctx.db
+    .query("events")
+    .withIndex("by_creation_time", (q) => q.gte("_creationTime", fromMs).lt("_creationTime", toMs))
+    .take(METRIC_SAMPLE_CAP);
+  const notifications = await notificationsIn(ctx, range);
+  const enqueueLags: number[] = [];
+  const eventRecordedAt = new Map<Id<"events">, number>();
+  for (const row of notifications) {
+    if (!eventRecordedAt.has(row.eventId)) {
+      eventRecordedAt.set(row.eventId, (await ctx.db.get(row.eventId))?.recordedAt ?? row._creationTime);
+    }
+    enqueueLags.push(row._creationTime - (eventRecordedAt.get(row.eventId) ?? row._creationTime));
+  }
+  const sweeps = spanDurations(missed.map((row) => ({ key: `${row.schoolId}:${row.serviceDate}`, at: row.recordedAt })));
+  const attempted = notifications.filter((row) => ATTEMPTED_STATUSES.has(row.status)).length;
+  const delivered = notifications.filter((row) => row.status === "delivered").length;
+  return {
+    taps: taps.length,
+    ingestionLagP95Ms: p95(taps.map((row) => Math.max(0, row.recordedAt - row.occurredAt))),
+    enqueueLagP95Ms: p95(enqueueLags),
+    sweepDurationP95Ms: p95([...sweeps.values()]),
+    sweeps: sweeps.size,
+    evaluations: evaluated.length,
+    suppressed: notifications.filter((row) => row.status === "suppressed").length,
+    deliveredPct: attempted === 0 ? 0 : Math.round((delivered / attempted) * PERCENT),
+  };
+}
+
+export const metrics = query({
+  args: { from: v.string(), to: v.string() },
+  returns: v.object({
+    taps: v.number(),
+    ingestionLagP95Ms: v.number(),
+    enqueueLagP95Ms: v.number(),
+    sweepDurationP95Ms: v.number(),
+    sweeps: v.number(),
+    evaluations: v.number(),
+    suppressed: v.number(),
+    deliveredPct: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, ADMIN_ROLES);
+    return await metricsReport(ctx, args);
   },
 });
 
@@ -356,6 +546,7 @@ export const fleet = query({
       queueDepth: v.number(),
       clockSkewSeconds: v.number(),
       lastSeenAt: v.optional(v.number()),
+      revokedAt: v.optional(v.number()),
       silentAfterMs: v.number(),
       skewToleranceSeconds: v.number(),
     }),
@@ -378,6 +569,7 @@ export const fleet = query({
         queueDepth: device.queueDepth,
         clockSkewSeconds: device.clockSkewSeconds,
         lastSeenAt: device.lastSeenAt,
+        revokedAt: device.revokedAt,
         silentAfterMs,
         skewToleranceSeconds,
       });

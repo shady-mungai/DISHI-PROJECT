@@ -98,14 +98,28 @@ These exist for testing absence triggers regardless of the demo — they are not
 
 Tell me who is meant to be interesting and I will shape the list around it.
 
-### Demo script (available end of Week 1)
+### Pilot demo script (Sprint 3 close — run cold on a fresh deployment)
 
-1. School uploads the enrolment PDF. Names appear, someone confirms them. Roster exists.
-2. Expectations generated for today — the list of who *should* eat.
-3. Children tap (real tags or simulator). Guardians' phones buzz within a minute.
-4. Live count on screen climbs against expected.
-5. Cutoff passes. Guardians of the children who never tapped get a text.
-6. Point at the phones. That is the product.
+Prep, once: `npx convex run settings:seedDefaults`, `npx convex run rules:seed` (or the
+seed module), one login per role via `npx convex run users:assignRole`, phones in the room,
+`smsChannel` set to `celcom` (`developer-notes.md`).
+
+| # | Actor · page | Do | Watch |
+|---|---|---|---|
+| 1 | School · `/enrolment/import` | Upload the enrolment PDF, confirm the names | Roster of 30 appears; `student.enrolled` events |
+| 2 | School · `/service-day` | **Run expectations now** | "0 / 30 served" — the list of who *should* eat |
+| 3 | School · `/reader` (or **Simulate taps**, seed 1, 3 no-shows) | Children tap | Count climbs; guardians' phones buzz inside a minute |
+| 4 | School · `/service-day` | Serve one child by **override** (forgotten tag) | Counted once; reason + staff on the event; own override rate updates |
+| 5 | Supplier · `/supplier` | Mid-window, with only a few taps in | `service.stalled` alert with taps-so-far vs expected |
+| 6 | School · `/service-day` | **Run sweep now** after cutoff | Missed-meal texts land; point at the phones |
+| 7 | Guardian · handset | Dial `*265*39#` | Status, balance, history in one session; opt-out toggle audited |
+| 8 | Supplier · `/deliveries` | Declare a dispatch → one-time code | School · `/deliveries` confirms by code |
+| 9 | School · `/deliveries` | **Run reconciliation now** | Dispatched / confirmed / eaten and the variance |
+| 10 | County · `/deliveries` | Payment file for the period | Exactly the confirmed lines — the unconfirmed dispatch has none |
+| 11 | County · `/county` | Ranked variance, streak + override alerts, click a figure, **Export CSV** | Drill to the events behind the number |
+| 12 | Admin · `/admin` | Edit a rule's wording, **Dry run** over last week | Report of what would render, nothing sent; audit row appears |
+| 13 | Admin · `/admin` | **Trace** the notification id from step 3 | Originating tap event and every message on its correlation id |
+| 14 | Admin · `/admin` | Service levels panel | Ingestion / enqueue lag p95, sweep duration, delivered % |
 
 ---
 
@@ -218,7 +232,7 @@ Pair-all-day. No standup ceremony, no ticket theatre.
 - [x] D12 county dashboard — typecheck, lint, build, 104/104 tests green; `tests/countyDashboard.test.ts` asserts schools rank by |variance| not name, the streak counts consecutive out-of-tolerance reconciled days from the newest, today's reconciliation completing a streak emits `reconciliation.variance_exceeded` exactly once (recompute is a no-op), programme totals (schools, meals, distinct guardians reached, deliverability), and the CSV export mirrors the ranked view; `/county` drills any figure to its events via `county.eventsFor`. `integrity.override_rate_exceeded` fires from the same post-reconciliation hook
 - [x] D13 supplier dashboard + stalled service — typecheck, lint, build, 108/108 tests green; `tests/supplierDashboard.test.ts` asserts a school at 30% of its linear run rate mid-window emits `service.stalled` exactly once (on-track and post-window checks emit nothing), and `supplier.overview` joins forecast to the reconciled ledger per school-day, scores accuracy (MAE + signed bias), and lists unconfirmed deliveries and stalled alerts. The check is scheduled from `startServiceDay` at the window midpoint; `/supplier` page; deployed to dev
 - [x] D14 admin console + dry-run replay — typecheck, lint, build, 111/111 tests green; `tests/adminConsole.test.ts` asserts the dry run renders exactly what evaluate would (same recipients, same greeting + template) and writes no notification rows, rejects a malformed predicate, deliverability groups by day / failure reason / guardian queue / rule spend, and a notification id, provider message id or event id all resolve to the originating event. `admin.dryRunReplay` is a paged action (200 events/page, 50-page cap) over `internal.admin.dryRunPageFor`; `admin.upsertRule` bumps templateVersion on wording changes and rejects multi-segment templates; `/admin` page; deployed to dev
-- [ ] D15 audit, NFR verification, demo script, buffer
+- [x] D15 audit, retention, hardening, NFR metrics, demo script — typecheck, lint, build, 116/116 tests green; `tests/hardening.test.ts` asserts a transient gateway failure is retried with doubling backoff up to `deliveryMaxAttempts` then recorded failed while a rejected number fails first time (NFR-205), a revoked device is unknown to `/ingest` on its next contact (NFR-406), the nightly purge deletes expired events/notifications, keeps `admin.*` audit events and de-identifies a long-deactivated child (NFR-505, FR-802), and the audit log + p95 metrics read back (NFR-803). Every admin mutation (rule change/toggle, setting change, device revoke) writes an attributed `admin.*` event (NFR-405). `/admin` grows service levels, audit log, settings/retention editor and revoke buttons. Settings re-seeded on dev (5 new). Demo script above. NFR pass so far: D5 rehearsal 29 taps via `/ingest` in 940 ms (≈32 ms/tap, NFR-102 first hop); enqueue lag and sweep duration now measured live on `/admin`; NFR-105 (3G render) and NFR-103 (handset) need the room
 
 ### Waiting on you
 
