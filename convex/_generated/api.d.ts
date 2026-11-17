@@ -8,10 +8,17 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as channels from "../channels.js";
+import type * as county from "../county.js";
 import type * as crons from "../crons.js";
 import type * as deliveries from "../deliveries.js";
+import type * as deliveryAssessment from "../deliveryAssessment.js";
+import type * as deliveryDashboard from "../deliveryDashboard.js";
+import type * as deliveryNotifications from "../deliveryNotifications.js";
+import type * as deliveryPhotos from "../deliveryPhotos.js";
+import type * as deliveryWorkflow from "../deliveryWorkflow.js";
 import type * as devices from "../devices.js";
 import type * as digest from "../digest.js";
 import type * as enrolment from "../enrolment.js";
@@ -25,15 +32,21 @@ import type * as lib_channels_celcom from "../lib/channels/celcom.js";
 import type * as lib_channels_console from "../lib/channels/console.js";
 import type * as lib_channels_index from "../lib/channels/index.js";
 import type * as lib_channels_types from "../lib/channels/types.js";
+import type * as lib_county from "../lib/county.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_deliveryReport from "../lib/deliveryReport.js";
+import type * as lib_deliveryWorkflow from "../lib/deliveryWorkflow.js";
 import type * as lib_enrolmentParser from "../lib/enrolmentParser.js";
 import type * as lib_events from "../lib/events.js";
 import type * as lib_gsm7 from "../lib/gsm7.js";
 import type * as lib_hmac from "../lib/hmac.js";
 import type * as lib_mask from "../lib/mask.js";
+import type * as lib_metrics from "../lib/metrics.js";
+import type * as lib_monitor from "../lib/monitor.js";
+import type * as lib_photoAssessment from "../lib/photoAssessment.js";
 import type * as lib_policy from "../lib/policy.js";
 import type * as lib_predicate from "../lib/predicate.js";
+import type * as lib_retry from "../lib/retry.js";
 import type * as lib_roles from "../lib/roles.js";
 import type * as lib_simulation from "../lib/simulation.js";
 import type * as lib_supply from "../lib/supply.js";
@@ -42,12 +55,17 @@ import type * as lib_template from "../lib/template.js";
 import type * as lib_ussd from "../lib/ussd.js";
 import type * as lib_wallet_payments from "../lib/wallet/payments.js";
 import type * as lib_wallet_threshold from "../lib/wallet/threshold.js";
+import type * as monitor from "../monitor.js";
 import type * as notifications from "../notifications.js";
+import type * as overrides from "../overrides.js";
 import type * as readers from "../readers.js";
+import type * as retention from "../retention.js";
+import type * as roster from "../roster.js";
 import type * as rules from "../rules.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
 import type * as simulator from "../simulator.js";
+import type * as supplier from "../supplier.js";
 import type * as users from "../users.js";
 import type * as ussd from "../ussd.js";
 import type * as wallets from "../wallets.js";
@@ -59,10 +77,17 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   auth: typeof auth;
   channels: typeof channels;
+  county: typeof county;
   crons: typeof crons;
   deliveries: typeof deliveries;
+  deliveryAssessment: typeof deliveryAssessment;
+  deliveryDashboard: typeof deliveryDashboard;
+  deliveryNotifications: typeof deliveryNotifications;
+  deliveryPhotos: typeof deliveryPhotos;
+  deliveryWorkflow: typeof deliveryWorkflow;
   devices: typeof devices;
   digest: typeof digest;
   enrolment: typeof enrolment;
@@ -76,15 +101,21 @@ declare const fullApi: ApiFromModules<{
   "lib/channels/console": typeof lib_channels_console;
   "lib/channels/index": typeof lib_channels_index;
   "lib/channels/types": typeof lib_channels_types;
+  "lib/county": typeof lib_county;
   "lib/dates": typeof lib_dates;
   "lib/deliveryReport": typeof lib_deliveryReport;
+  "lib/deliveryWorkflow": typeof lib_deliveryWorkflow;
   "lib/enrolmentParser": typeof lib_enrolmentParser;
   "lib/events": typeof lib_events;
   "lib/gsm7": typeof lib_gsm7;
   "lib/hmac": typeof lib_hmac;
   "lib/mask": typeof lib_mask;
+  "lib/metrics": typeof lib_metrics;
+  "lib/monitor": typeof lib_monitor;
+  "lib/photoAssessment": typeof lib_photoAssessment;
   "lib/policy": typeof lib_policy;
   "lib/predicate": typeof lib_predicate;
+  "lib/retry": typeof lib_retry;
   "lib/roles": typeof lib_roles;
   "lib/simulation": typeof lib_simulation;
   "lib/supply": typeof lib_supply;
@@ -93,12 +124,17 @@ declare const fullApi: ApiFromModules<{
   "lib/ussd": typeof lib_ussd;
   "lib/wallet/payments": typeof lib_wallet_payments;
   "lib/wallet/threshold": typeof lib_wallet_threshold;
+  monitor: typeof monitor;
   notifications: typeof notifications;
+  overrides: typeof overrides;
   readers: typeof readers;
+  retention: typeof retention;
+  roster: typeof roster;
   rules: typeof rules;
   seed: typeof seed;
   settings: typeof settings;
   simulator: typeof simulator;
+  supplier: typeof supplier;
   users: typeof users;
   ussd: typeof ussd;
   wallets: typeof wallets;
@@ -132,4 +168,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

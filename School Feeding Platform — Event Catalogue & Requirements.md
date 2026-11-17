@@ -1,4 +1,6 @@
-# School Feeding Platform — Event Catalogue & Requirements
+# Mlo: An Intelligent School Feeding Management and Communication System
+
+Event catalogue and requirements.
 
 > Requirements baseline for the school feeding communication platform. Scope: Nairobi primary schools. Version 0.1 draft, 8 September 2026.
 > 

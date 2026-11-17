@@ -16,8 +16,13 @@ const STUDENT_PAGE_SIZE = 100;
 const SWEEP_BATCH_SIZE = 100;
 const MAX_SCHOOLS = 100;
 const SUMMARY_READ_CAP = 1000;
+const STALLED_CHECK_AT_WINDOW_FRACTION = 0.5;
 
-type ServiceWindow = { windowStart: number; windowEnd: number; cutoffAt: number };
+type ServiceWindow = {
+  windowStart: number;
+  windowEnd: number;
+  cutoffAt: number;
+};
 
 const serviceWindowValidator = {
   windowStart: v.number(),
@@ -39,16 +44,24 @@ type MaterialiseResult = {
   chained: boolean;
 };
 
-const sweepResultValidator = v.object({ missed: v.number(), chained: v.boolean() });
+const sweepResultValidator = v.object({
+  missed: v.number(),
+  chained: v.boolean(),
+});
 
 type SweepResult = { missed: number; chained: boolean };
 
-async function resolveServiceWindow(ctx: QueryCtx, serviceStartAt: number): Promise<ServiceWindow> {
+async function resolveServiceWindow(
+  ctx: QueryCtx,
+  serviceStartAt: number,
+): Promise<ServiceWindow> {
   const windowMinutes = Number(
-    (await readSetting(ctx, SettingKey.ServiceWindowMinutes)) ?? DEFAULT_SERVICE_WINDOW_MINUTES,
+    (await readSetting(ctx, SettingKey.ServiceWindowMinutes)) ??
+      DEFAULT_SERVICE_WINDOW_MINUTES,
   );
   const cutoffOffsetMinutes = Number(
-    (await readSetting(ctx, SettingKey.CutoffOffsetMinutes)) ?? DEFAULT_CUTOFF_OFFSET_MINUTES,
+    (await readSetting(ctx, SettingKey.CutoffOffsetMinutes)) ??
+      DEFAULT_CUTOFF_OFFSET_MINUTES,
   );
   const windowEnd = serviceStartAt + windowMinutes * MILLISECONDS_PER_MINUTE;
   return {
@@ -58,7 +71,13 @@ async function resolveServiceWindow(ctx: QueryCtx, serviceStartAt: number): Prom
   };
 }
 
-export async function isSchoolDay(ctx: QueryCtx, serviceDate: string): Promise<boolean> {
+export async function isSchoolDay(
+  ctx: QueryCtx,
+  serviceDate: string,
+): Promise<boolean> {
+  if ((await readSetting(ctx, SettingKey.TreatEveryDayAsSchoolDay)) === true) {
+    return true;
+  }
   const day = await ctx.db
     .query("academicCalendar")
     .withIndex("by_serviceDate", (q) => q.eq("serviceDate", serviceDate))
@@ -75,10 +94,15 @@ type MaterialisePageArgs = {
 
 // FR-207/FR-405: one expectation row per active student. Paged over the
 // roster and chained through the scheduler so it survives past demo scale.
-async function materialiseStudentsPage(ctx: MutationCtx, args: MaterialisePageArgs): Promise<MaterialiseResult> {
+async function materialiseStudentsPage(
+  ctx: MutationCtx,
+  args: MaterialisePageArgs,
+): Promise<MaterialiseResult> {
   const page = await ctx.db
     .query("students")
-    .withIndex("by_school_status", (q) => q.eq("schoolId", args.schoolId).eq("status", "active"))
+    .withIndex("by_school_status", (q) =>
+      q.eq("schoolId", args.schoolId).eq("status", "active"),
+    )
     .paginate({ numItems: args.pageSize, cursor: args.cursor });
 
   let created = 0;
@@ -120,7 +144,10 @@ async function materialiseStudent(
   const tappedAlready = await ctx.db
     .query("events")
     .withIndex("by_student_serviceDate_type", (q) =>
-      q.eq("studentId", student._id).eq("serviceDate", day.serviceDate).eq("type", "meal.tapped"),
+      q
+        .eq("studentId", student._id)
+        .eq("serviceDate", day.serviceDate)
+        .eq("type", "meal.tapped"),
     )
     .first();
 
@@ -159,17 +186,33 @@ async function materialiseStudent(
 
 async function startServiceDay(
   ctx: MutationCtx,
-  args: { schoolId: Id<"schools">; serviceDate: string; serviceStartAt: number; pageSize?: number },
+  args: {
+    schoolId: Id<"schools">;
+    serviceDate: string;
+    serviceStartAt: number;
+    pageSize?: number;
+  },
 ): Promise<MaterialiseResult> {
   if (!(await isSchoolDay(ctx, args.serviceDate))) {
-    return { status: "not_school_day", created: 0, existing: 0, chained: false };
+    return {
+      status: "not_school_day",
+      created: 0,
+      existing: 0,
+      chained: false,
+    };
   }
 
   const window = await resolveServiceWindow(ctx, args.serviceStartAt);
-  await ctx.scheduler.runAt(window.cutoffAt, internal.expectations.sweepMissed, {
-    schoolId: args.schoolId,
-    serviceDate: args.serviceDate,
-  });
+  const day = { schoolId: args.schoolId, serviceDate: args.serviceDate };
+  await ctx.scheduler.runAt(
+    window.cutoffAt,
+    internal.expectations.sweepMissed,
+    day,
+  );
+  const stalledCheckAt =
+    window.windowStart +
+    (window.windowEnd - window.windowStart) * STALLED_CHECK_AT_WINDOW_FRACTION;
+  await ctx.scheduler.runAt(stalledCheckAt, internal.monitor.checkStalled, day);
 
   return await materialiseStudentsPage(ctx, {
     schoolId: args.schoolId,
@@ -190,7 +233,10 @@ async function sweepPage(
   const pending = await ctx.db
     .query("expectations")
     .withIndex("by_school_serviceDate_status", (q) =>
-      q.eq("schoolId", args.schoolId).eq("serviceDate", args.serviceDate).eq("status", "pending"),
+      q
+        .eq("schoolId", args.schoolId)
+        .eq("serviceDate", args.serviceDate)
+        .eq("status", "pending"),
     )
     .take(SWEEP_BATCH_SIZE);
 
@@ -231,7 +277,9 @@ export async function fulfilExpectation(
 ): Promise<void> {
   const expectation = await ctx.db
     .query("expectations")
-    .withIndex("by_student_serviceDate", (q) => q.eq("studentId", studentId).eq("serviceDate", serviceDate))
+    .withIndex("by_student_serviceDate", (q) =>
+      q.eq("studentId", studentId).eq("serviceDate", serviceDate),
+    )
     .unique();
   if (!expectation || expectation.status !== "pending") {
     return;
@@ -320,12 +368,19 @@ export const runSweepNow = mutation({
 // status; move to @convex-dev/aggregate once a school exceeds that.
 export async function countExpectations(
   ctx: QueryCtx,
-  key: { schoolId: Id<"schools">; serviceDate: string; status: Doc<"expectations">["status"] },
+  key: {
+    schoolId: Id<"schools">;
+    serviceDate: string;
+    status: Doc<"expectations">["status"];
+  },
 ): Promise<number> {
   const rows = await ctx.db
     .query("expectations")
     .withIndex("by_school_serviceDate_status", (q) =>
-      q.eq("schoolId", key.schoolId).eq("serviceDate", key.serviceDate).eq("status", key.status),
+      q
+        .eq("schoolId", key.schoolId)
+        .eq("serviceDate", key.serviceDate)
+        .eq("status", key.status),
     )
     .take(SUMMARY_READ_CAP);
   return rows.length;
@@ -333,7 +388,11 @@ export async function countExpectations(
 
 export const daySummary = query({
   args: { schoolId: v.id("schools"), serviceDate: v.string() },
-  returns: v.object({ pending: v.number(), fulfilled: v.number(), missed: v.number() }),
+  returns: v.object({
+    pending: v.number(),
+    fulfilled: v.number(),
+    missed: v.number(),
+  }),
   handler: async (ctx, args) => {
     await requireSchoolScope(ctx, args.schoolId);
     return {

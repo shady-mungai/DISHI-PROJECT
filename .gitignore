@@ -32,6 +32,12 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# Cloudflare build output and local credentials
+/.open-next/
+/.wrangler/
+.dev.vars*
 
 # vercel
 .vercel
@@ -44,3 +50,23 @@ next-env.d.ts
 *.bak
 
 roster_seed_data.pdf
+# personal notes
+developer-notes.md
+
+# Browser verification artifacts and saved sessions
+/playwright-report/
+/test-results/
+/.auth/
+/.pnpm-store/
+
+# Personal planning, notes, and agent configuration
+/FUTURE_FEATURES.md
+/PLAN.md
+/UI_PLAN.md
+/UI_VERIFICATION.md
+/AGENTS.md
+/CLAUDE.md
+/.agents/
+/.claude/
+/.codex/
+/skills-lock.json

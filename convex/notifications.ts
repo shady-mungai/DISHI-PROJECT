@@ -7,6 +7,7 @@ import { nairobiDayStart } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { smsSegments } from "./lib/gsm7";
 import { maskMsisdn } from "./lib/mask";
+import { isTransientFailure, retryDelayMs } from "./lib/retry";
 import { notificationStatus } from "./schema";
 import { readNumberSetting, readSetting, SettingKey } from "./settings";
 
@@ -16,6 +17,8 @@ const SCHEMA_VERSION = 1;
 const DEFAULT_SMS_CHANNEL = "console";
 const DEFAULT_COST_PER_SEGMENT_KES = 1;
 const BILLED_STATUSES: ReadonlySet<string> = new Set(["sent", "delivered"]);
+const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_RETRY_BASE_SECONDS = 30;
 
 export const getForDelivery = internalQuery({
   args: { notificationId: v.id("notifications") },
@@ -33,6 +36,8 @@ export const getForDelivery = internalQuery({
   },
 });
 
+// NFR-205: a transient gateway failure keeps the row queued and schedules the
+// next attempt with doubling backoff; the configured limit turns it failed.
 export const markResult = internalMutation({
   args: {
     notificationId: v.id("notifications"),
@@ -40,15 +45,27 @@ export const markResult = internalMutation({
     providerMessageId: v.optional(v.string()),
     failureReason: v.optional(v.string()),
   },
-  returns: v.null(),
+  returns: v.union(v.literal("sent"), v.literal("failed"), v.literal("retry_scheduled")),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.notificationId, {
-      status: args.status,
-      providerMessageId: args.providerMessageId,
-      failureReason: args.failureReason,
-      sentAt: args.status === "sent" ? Date.now() : undefined,
-    });
-    return null;
+    const notification = await ctx.db.get(args.notificationId);
+    if (!notification) {
+      return "failed";
+    }
+    const attempts = (notification.attempts ?? 0) + 1;
+    if (args.status === "sent") {
+      await ctx.db.patch(args.notificationId, { status: "sent", providerMessageId: args.providerMessageId, sentAt: Date.now(), attempts, failureReason: undefined });
+      return "sent";
+    }
+    const reason = args.failureReason ?? "unknown";
+    const maxAttempts = await readNumberSetting(ctx, SettingKey.DeliveryMaxAttempts, DEFAULT_MAX_ATTEMPTS);
+    if (isTransientFailure(reason) && attempts < maxAttempts) {
+      const baseSeconds = await readNumberSetting(ctx, SettingKey.DeliveryRetryBaseSeconds, DEFAULT_RETRY_BASE_SECONDS);
+      await ctx.db.patch(args.notificationId, { attempts, failureReason: reason });
+      await ctx.scheduler.runAfter(retryDelayMs(attempts, baseSeconds), internal.channels.deliver, { notificationId: args.notificationId });
+      return "retry_scheduled";
+    }
+    await ctx.db.patch(args.notificationId, { status: "failed", failureReason: reason, attempts });
+    return "failed";
   },
 });
 

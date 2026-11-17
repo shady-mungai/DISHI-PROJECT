@@ -1,0 +1,76 @@
+{
+  "title": "Mlo: An Intelligent School Feeding Management and Communication System",
+  "source": "/Users/Apple/Documents/Strathmore University/IS project/Mungai's DISHI Project Documentation/Chapter4_Review_and_Diagrams/Final_ShadrackMungai_152522_Chapter4_Consolidated.docx",
+  "sourceSha256": "a624c32680b4e030003de9f3be3dc37bfbea83520a2316d419d6d7c57d9354e7",
+  "report": "/Users/Apple/Development/DISHI-PROJECT/docs/Mlo_Project_Report.docx",
+  "changedParagraphs": [
+    {
+      "before": "SMS Notification System: A Real-Time Communication System to Maintain Stakeholder Communication and Transparency in DISHI-OS",
+      "after": "Mlo: An Intelligent School Feeding Management and Communication System"
+    },
+    {
+      "before": "School feeding programs in Kenya face a persistent operational problem: the people responsible for running them parents, school administrators, suppliers, and county governments have no reliable way to communicate with each other in real time. When a meal goes unserved, a delivery goes unconfirmed, or a payment fails, the relevant parties often find out days later through manual reports, if at all. This communication gap drives financial leakage, erodes stakeholder trust, and slows the program's ability to respond to problems on the ground. This project develops an SMS Notification System as a dedicated module within the Digital School Feeding Management Platform (DSFMP), a broader digital operating system for school feeding programs built under the DISHI-OS initiative. The module is designed to bridge the communication gap by automatically sending targeted SMS alerts when key operational events occur including payment confirmations, daily meal delivery reports, low stock warnings, supplier delivery prompts, and non-reporting alerts for county administrators.",
+      "after": "School feeding programs in Kenya face a persistent operational problem: the people responsible for running them parents, school administrators, suppliers, and county governments have no reliable way to communicate with each other in real time. When a meal goes unserved, a delivery goes unconfirmed, or a payment fails, the relevant parties often find out days later through manual reports, if at all. This communication gap drives financial leakage, erodes stakeholder trust, and slows the program's ability to respond to problems on the ground. This project develops Mlo, an intelligent school feeding management and communication system for schools, guardians, suppliers and county administrators. Mlo connects meal-service records, supplier dispatch and school receipt confirmation, historical demand forecasting, guardian SMS and USSD communication, and delivery reconciliation. Its intelligence combines explainable historical forecasting, configurable notification and exception rules, and advisory AI assessment of delivery photographs. Photo assessment supports human review and does not certify quantities or food safety."
+    },
+    {
+      "before": "Keywords: SMS Notification System, Event-Driven Architecture, Rules Engine, USSD, Celcom Africa API, School Feeding, Real-Time Alerts",
+      "after": "Keywords: Mlo, School Feeding Management, Stakeholder Communication, Event-Driven Architecture, Demand Forecasting, Rules Engine, AI-Assisted Photo Review, SMS, USSD"
+    },
+    {
+      "before": "This project develops an SMS Notification System as a dedicated module within the Digital School Feeding Management Platform (DSFMP), the broader digital operating system built under the DISHI-OS initiative. The module closes the communication gap by recording each operational event as it happens and automatically sending targeted messages to the people who need them: meal-served and missed-meal alerts, wallet top-up, low-balance and depletion warnings, and a weekly digest to guardians; portion forecasts, stalled-service and unconfirmed-delivery alerts to suppliers; and variance and override alerts to county programme officers.",
+      "after": "This project develops Mlo, an intelligent school feeding management and communication system. Mlo closes the communication gap by recording operational events and sending targeted messages to the people who need them: meal-served and missed-meal alerts, wallet top-up, low-balance and depletion warnings, and a weekly digest to guardians; portion forecasts, stalled-service and unconfirmed-delivery alerts to suppliers; and variance and override alerts to county programme officers. It also links supplier dispatches to school receipt confirmation, advisory photo review and reconciliation."
+    },
+    {
+      "before": "To develop an event-driven and predictive SMS Notification System as a module of the Digital School Feeding Management Platform (DSFMP).",
+      "after": "To design, develop and evaluate Mlo, an intelligent school feeding management and communication system that supports meal-service monitoring, demand forecasting, delivery accountability and timely stakeholder communication."
+    },
+    {
+      "before": "To analyze the current state of the Digital School Feeding Management Platform (DSFMP).",
+      "after": "To analyze the current state of school feeding management and stakeholder communication to establish the requirements for Mlo."
+    },
+    {
+      "before": "What is the current structural state of real-time communication, information flow, and resource tracking among stakeholders within the Digital School Feeding Management Platform (DSFMP)?",
+      "after": "What is the current state of real-time communication, information flow and resource tracking among stakeholders in school feeding programmes, and what requirements should guide Mlo?"
+    },
+    {
+      "before": "The communication gap in Kenya's school feeding programs is not a minor operational inconvenience. It is a structural weakness. Financial leakage, supplier non-compliance, and slow administrative responses are, in large part, products of a system where nobody automatically knows when something has gone wrong. Embedding automated notifications into the DSFMP's operating layer changes that: it makes accountability a default rather than something that depends on someone remembering to follow up.",
+      "after": "The communication gap in Kenya's school feeding programs is not a minor operational inconvenience. It is a structural weakness. Financial leakage, supplier non-compliance, and slow administrative responses are, in large part, products of a system where nobody automatically knows when something has gone wrong. Embedding automated notifications into Mlo's operating layer changes that: it makes accountability a default rather than something that depends on someone remembering to follow up."
+    },
+    {
+      "before": "This project covers the design, development and testing of the SMS Notification System as a module within the DSFMP. It does not replace the payment, kitchen or procurement systems; it consumes their events. The system covers event capture at the point of service (NFC tap or staff override), a rules engine that drives notifications from seven trigger classes, guardian messaging over SMS and USSD, supplier dispatch declaration and school confirmation, reconciliation of portions dispatched against portions consumed, and role-scoped dashboards for schools, suppliers, county officers and administrators. All outbound messages and USSD sessions route through the Celcom Africa gateway.",
+      "after": "This project covers the design, development and testing of Mlo, an intelligent school feeding management and communication system. It does not replace the payment, kitchen or procurement systems; it consumes their events. The system covers event capture at the point of service (NFC tap or staff override), a rules engine that drives notifications from seven trigger classes, guardian messaging over SMS and USSD, supplier dispatch declaration and school confirmation, reconciliation of portions dispatched against portions consumed, and role-scoped dashboards for schools, suppliers, county officers and administrators. All outbound messages and USSD sessions route through the Celcom Africa gateway."
+    },
+    {
+      "before": "The scope of this study is strictly delimited to public primary school feeding programs within Kenya operating under the DISHI-OS initiative. Consequently, private schools, community-based programs outside this ecosystem, or feeding initiatives in other East African countries are excluded. Furthermore, the evaluation of the platform's deployment will be confined to select administrative counties currently participating in the Digital School Feeding Management Platform (DSFMP) pilot, rather than a nationwide rollout assessment, to ensure manageable data collection and field testing.",
+      "after": "The scope of this study is delimited to the school feeding management and communication workflows addressed by Mlo in the Nairobi County public primary school context. Private schools, community-based programmes outside the study context and feeding initiatives in other East African countries are excluded. The implementation and evaluation focus on the defined pilot and test scenarios rather than a nationwide rollout assessment."
+    },
+    {
+      "before": "This chapter describes how the SMS Notification System was planned and built. The project followed the Scrum framework within an Object-Oriented Analysis and Design (OOAD) approach. Section 3.2 describes the Scrum components and how they were applied by a single developer across three one-week sprints. Section 3.3 presents the analysis models, Section 3.4 the system design, Section 3.5 the tools and techniques used, and Section 3.6 the deliverables.",
+      "after": "This chapter describes how the Mlo system was planned and built. The project followed the Scrum framework within an Object-Oriented Analysis and Design (OOAD) approach. Section 3.2 describes the Scrum components and how they were applied by a single developer across three one-week sprints. Section 3.3 presents the analysis models, Section 3.4 the system design, Section 3.5 the tools and techniques used, and Section 3.6 the deliverables."
+    },
+    {
+      "before": "This section presents the UML diagrams developed to model the SMS Notification System's structure and behavior. The diagrams were the primary design artefacts for each sprint, giving the development work a concrete specification to build toward and a reference for testing.",
+      "after": "This section presents the UML diagrams developed to model the Mlo system's structure and behavior. The diagrams were the primary design artefacts for each sprint, giving the development work a concrete specification to build toward and a reference for testing."
+    },
+    {
+      "before": "This section describes the specific tools and technologies used to build the SMS Notification System. Each subsection covers one tool, its role in the project, and why it was chosen over alternatives.",
+      "after": "This section describes the specific tools and technologies used to build the Mlo system. Each subsection covers one tool, its role in the project, and why it was chosen over alternatives."
+    },
+    {
+      "before": "By the end of the project, six interconnected deliverables were produced. Each corresponds to a specific module or artefact, and together they make up the complete SMS Notification System.",
+      "after": "By the end of the project, six interconnected deliverables were produced. Each corresponds to a specific module or artefact, and together they make up the complete Mlo system."
+    },
+    {
+      "before": "This chapter presents the requirements, analysis and design of the DISHI SMS Notification System within DSFMP. It follows the Object-Oriented Analysis and Design approach introduced in Chapter 3. UML use cases, sequences, an activity model, a domain class model and package dependencies describe the actors and behaviour. The runtime architecture, logical Convex collection models and interface wireframes explain how the design supports meal reporting, guardian communication, forecasting and delivery accountability.",
+      "after": "This chapter presents the requirements, analysis and design of Mlo, the intelligent school feeding management and communication system. It follows the Object-Oriented Analysis and Design approach introduced in Chapter 3. UML use cases, sequences, an activity model, a domain class model and package dependencies describe the actors and behaviour. The runtime architecture, logical Convex collection models and interface wireframes explain how the design supports meal reporting, guardian communication, forecasting and delivery accountability."
+    },
+    {
+      "before": "Figure 4.1 aggregates the services of the DISHI SMS Notification System in a single UML system boundary. Student, guardian, school, supplier, county and administrator roles participate in the functions relevant to them (FR-100\u2013FR-800). Celcom Africa is the external communication actor.",
+      "after": "Figure 4.1 aggregates the services of the Mlo system in a single UML system boundary. Student, guardian, school, supplier, county and administrator roles participate in the functions relevant to them (FR-100\u2013FR-800). Celcom Africa is the external communication actor."
+    },
+    {
+      "before": "This chapter presents the implementation and testing of the SMS Notification System within the Digital School Feeding Management Platform. The implementation connects meal-service records, guardian communication and delivery reconciliation through a common event log. It translates the requirements in Chapter 4 into working modules for schools, suppliers, county officers and system administrators.",
+      "after": "This chapter presents the implementation and testing of Mlo, the intelligent school feeding management and communication system. The implementation connects meal-service records, guardian communication and delivery reconciliation through a common event log. It translates the requirements in Chapter 4 into working modules for schools, suppliers, county officers and system administrators."
+    }
+  ]
+}

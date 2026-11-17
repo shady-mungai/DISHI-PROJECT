@@ -6,6 +6,7 @@ import { fulfilExpectation } from "./expectations";
 import { toServiceDate } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { normaliseTagUid } from "./lib/tagUid";
+import { mealServedOn } from "./overrides";
 import { readSetting, SettingKey } from "./settings";
 import { debitForMeal } from "./wallets";
 
@@ -70,7 +71,10 @@ export const getDeviceSecretHash = internalQuery({
       .query("devices")
       .withIndex("by_deviceRef", (q) => q.eq("deviceRef", args.deviceRef))
       .unique();
-    return device ? { secretHash: device.secretHash } : null;
+    if (!device || device.revokedAt !== undefined) {
+      return null;
+    }
+    return { secretHash: device.secretHash };
   },
 });
 
@@ -143,13 +147,7 @@ async function recordTap(
 
   // FR-204/ST-04: a second tap on the same student, same service date is a
   // real physical event but not a second countable meal.
-  const sameDayTap = await ctx.db
-    .query("events")
-    .withIndex("by_student_serviceDate_type", (q) =>
-      q.eq("studentId", student._id).eq("serviceDate", serviceDate).eq("type", "meal.tapped"),
-    )
-    .first();
-
+  const sameDayTap = await mealServedOn(ctx, student._id, serviceDate);
   if (sameDayTap) {
     await recordEvent(ctx, {
       eventId: event.eventId,

@@ -6,16 +6,22 @@ import { authClient } from "@/app/auth-client";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
-
-const INPUT_CLASS = "rounded border border-zinc-300 px-3 py-2";
-const PRIMARY_BUTTON_CLASS = "rounded bg-black px-3 py-2 text-white disabled:opacity-50";
+import { BUTTON_CLASS, INPUT_CLASS, TITLE_CLASS } from "@/app/components/ui";
 
 export function Centered({ children }: { children: ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center p-8 text-zinc-500">{children}</div>;
+  return (
+    <div className="flex flex-1 items-center justify-center p-8 text-ink/80">
+      {children}
+    </div>
+  );
 }
 
 // Renders `children(user)` only once the viewer is signed in and has a profile.
-export function UserGate({ children }: { children: (user: Doc<"users">) => ReactNode }) {
+export function UserGate({
+  children,
+}: {
+  children: (user: Doc<"users">) => ReactNode;
+}) {
   const { isAuthenticated, isLoading } = useConvexAuth();
 
   if (isLoading) {
@@ -29,10 +35,20 @@ export function UserGate({ children }: { children: (user: Doc<"users">) => React
 
 // Renders `children(schoolId)` only for a school-scoped profile. Same gate the
 // enrolment page carries inline.
-export function SchoolGate({ children }: { children: (schoolId: Id<"schools">) => ReactNode }) {
+export function SchoolGate({
+  children,
+}: {
+  children: (schoolId: Id<"schools">) => ReactNode;
+}) {
   return (
     <UserGate>
-      {(user) => (user.schoolId ? children(user.schoolId) : <Centered>Your account isn&apos;t attached to a school yet.</Centered>)}
+      {(user) =>
+        user.schoolId && ["school", "county", "admin"].includes(user.role) ? (
+          children(user.schoolId)
+        ) : (
+          <Centered>Your account isn&apos;t attached to a school yet.</Centered>
+        )
+      }
     </UserGate>
   );
 }
@@ -57,7 +73,9 @@ function SignInForm() {
         setError(result.error.message ?? "Something went wrong");
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not reach the server");
+      setError(
+        caught instanceof Error ? caught.message : "Could not reach the server",
+      );
     } finally {
       setPending(false);
     }
@@ -65,41 +83,78 @@ function SignInForm() {
 
   return (
     <Centered>
-      <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-3">
-        <h1 className="text-lg font-semibold">{mode === "sign-in" ? "Sign in" : "Create an account"}</h1>
-        <input
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setEmail(event.target.value)}
-          className={INPUT_CLASS}
-        />
-        <input
-          type="password"
-          required
-          placeholder="Password"
-          value={password}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value)}
-          className={INPUT_CLASS}
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={pending} className={PRIMARY_BUTTON_CLASS}>
-          {mode === "sign-in" ? "Sign in" : "Sign up"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
-          className="text-sm text-zinc-500 underline"
+      <main className="auth-panel w-full max-w-sm">
+        <p className="mb-4 text-3xl font-semibold text-green">Mlo</p>
+        <p className="mb-6">Every meal counted. Every guardian told.</p>
+        <form
+          onSubmit={handleSubmit}
+          className="flex w-full max-w-sm flex-col gap-3"
         >
-          {mode === "sign-in" ? "Need an account? Sign up" : "Have an account? Sign in"}
-        </button>
-      </form>
+          <h1 className={TITLE_CLASS}>
+            {mode === "sign-in" ? "Sign in" : "Create an account"}
+          </h1>
+          <label htmlFor="auth-email">Email</label>
+          <input
+            id="auth-email"
+            autoComplete="email"
+            type="email"
+            required
+            aria-label="Email"
+            placeholder="Email"
+            value={email}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              setEmail(event.target.value)
+            }
+            className={INPUT_CLASS}
+          />
+          <label htmlFor="auth-password">Password</label>
+          <input
+            id="auth-password"
+            autoComplete={
+              mode === "sign-in" ? "current-password" : "new-password"
+            }
+            type="password"
+            required
+            aria-label="Password"
+            placeholder="Password"
+            value={password}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              setPassword(event.target.value)
+            }
+            className={INPUT_CLASS}
+          />
+          {error && (
+            <p role="alert" className="text-sm text-error">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={pending} className={BUTTON_CLASS}>
+            {pending
+              ? "Please wait…"
+              : mode === "sign-in"
+                ? "Sign in"
+                : "Sign up"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
+            className="text-sm text-ink/80 underline"
+          >
+            {mode === "sign-in"
+              ? "Need an account? Sign up"
+              : "Have an account? Sign in"}
+          </button>
+        </form>
+      </main>
     </Centered>
   );
 }
 
-function ProfileGate({ children }: { children: (user: Doc<"users">) => ReactNode }) {
+function ProfileGate({
+  children,
+}: {
+  children: (user: Doc<"users">) => ReactNode;
+}) {
   const profile = useQuery(api.users.me);
   const bootstrapProfile = useMutation(api.users.bootstrapProfile);
   const bootstrapped = useRef(false);
@@ -108,9 +163,15 @@ function ProfileGate({ children }: { children: (user: Doc<"users">) => ReactNode
   useEffect(() => {
     if (profile === null && !bootstrapped.current) {
       bootstrapped.current = true;
-      bootstrapProfile({ displayName: "School staff" }).catch((caught: unknown) => {
-        setBootstrapError(caught instanceof Error ? caught.message : "Could not set up your account");
-      });
+      bootstrapProfile({ displayName: "School staff" }).catch(
+        (caught: unknown) => {
+          setBootstrapError(
+            caught instanceof Error
+              ? caught.message
+              : "Could not set up your account",
+          );
+        },
+      );
     }
   }, [profile, bootstrapProfile]);
 

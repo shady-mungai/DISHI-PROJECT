@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { nairobiDayStart } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { smsSegments } from "./lib/gsm7";
@@ -27,7 +27,7 @@ const SCHEMA_VERSION = 1;
 const SENTENCE_SEPARATOR = " ";
 export const WEEKLY_DIGEST_EVENT = "digest.weekly";
 
-type RuleSeed = Omit<Doc<"rules">, "_id" | "_creationTime">;
+export type RuleSeed = Omit<Doc<"rules">, "_id" | "_creationTime">;
 
 // FR-403 / AD-04: rules are rows, not code. Editing these in the dashboard
 // changes behaviour without a deploy.
@@ -42,6 +42,20 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
       sw: "{{child}} amekula chakula cha mchana {{school}} leo ({{date}}).",
     },
     templateVersion: 3,
+    channel: "sms",
+    priority: DEFAULT_PRIORITY,
+    enabled: true,
+  },
+  {
+    key: "guardian.meal_override_served",
+    eventType: "meal.override_served",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "{{child}} had lunch at {{school}} today ({{date}}).",
+      sw: "{{child}} amekula chakula cha mchana {{school}} leo ({{date}}).",
+    },
+    templateVersion: 1,
     channel: "sms",
     priority: DEFAULT_PRIORITY,
     enabled: true,
@@ -276,7 +290,7 @@ async function mergeIntoCarrier(ctx: MutationCtx, candidate: Candidate, carrier:
   });
 }
 
-type Recipients = { guardians: Doc<"guardians">[]; vars: Record<string, string> };
+export type Recipients = { guardians: Doc<"guardians">[]; vars: Record<string, string> };
 
 function payloadVars(event: Doc<"events">): Record<string, string> {
   return Object.fromEntries(
@@ -288,7 +302,7 @@ function payloadVars(event: Doc<"events">): Record<string, string> {
 
 // A student event fans out to the linked guardians; a guardian-addressed event
 // (weekly digest) names its recipient. Payload fields are template vars either way.
-async function resolveRecipients(ctx: MutationCtx, event: Doc<"events">): Promise<Recipients> {
+export async function resolveRecipients(ctx: QueryCtx, event: Doc<"events">): Promise<Recipients> {
   const vars = payloadVars(event);
   if (event.studentId) {
     const student = await ctx.db.get(event.studentId);
@@ -314,6 +328,10 @@ async function resolveRecipients(ctx: MutationCtx, event: Doc<"events">): Promis
   return { guardians: guardian ? [guardian] : [], vars };
 }
 
+export function renderBody(rule: Pick<Doc<"rules">, "templates">, guardian: Doc<"guardians">, vars: Record<string, string>): string {
+  return renderGreeting(guardian.language, guardian.displayName) + renderTemplate(rule.templates[guardian.language], vars);
+}
+
 async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<"events">): Promise<number> {
   const { guardians, vars } = await resolveRecipients(ctx, event);
   const now = Date.now();
@@ -327,7 +345,7 @@ async function notifyGuardians(ctx: MutationCtx, rule: Doc<"rules">, event: Doc<
     if (duplicate) {
       continue;
     }
-    const body = renderGreeting(guardian.language, guardian.displayName) + renderTemplate(rule.templates[guardian.language], vars);
+    const body = renderBody(rule, guardian, vars);
     const candidate: Candidate = { rule, event, guardian, dedupeKey, body };
     const { decision, carrier } = await decide(ctx, guardian, event.type, now);
     if (decision.action === "suppress") {

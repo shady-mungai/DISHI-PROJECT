@@ -15,7 +15,18 @@ const FORECAST_UTC_CRON = "0 18 * * *";
 // 18:00 Nairobi — after the last cutoff, reconcile today's dispatch/confirm/consume.
 const RECONCILIATION_UTC_CRON = "0 15 * * *";
 
+// 12:00 Nairobi — half an hour before the window opens, flag readers that
+// have not synced since the last service day (SC-04).
+const READER_CHECK_UTC_CRON = "0 9 * * *";
+
+// 02:00 Nairobi — retention purge (NFR-505), after the day's batch jobs.
+const RETENTION_UTC_CRON = "0 23 * * *";
+
 const crons = cronJobs();
+
+crons.cron("retention purge", RETENTION_UTC_CRON, internal.retention.purgeExpired, {});
+
+crons.cron("flag silent readers before service", READER_CHECK_UTC_CRON, internal.readers.flagSilentReaders, {});
 
 crons.cron(
   "materialise meal expectations at service start",

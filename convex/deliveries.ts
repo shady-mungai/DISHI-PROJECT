@@ -1,8 +1,10 @@
+import { dispatchDelivery, dispatchArgs as newDispatchArgs } from "./deliveryWorkflow";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { flagIntegrity } from "./county";
 import { countExpectations, isSchoolDay } from "./expectations";
 import { requireRole, requireSchoolScope } from "./lib/authz";
 import { addDays, toServiceDate } from "./lib/dates";
@@ -42,14 +44,6 @@ export const DeliveryFailure = {
   UnknownCode: "UNKNOWN_CODE",
 } as const;
 
-const dispatchArgs = {
-  schoolId: v.id("schools"),
-  serviceDate: v.string(),
-  portions: v.number(),
-  vehicle: v.optional(v.string()),
-  docketRef: v.string(),
-  dispatchedAt: v.optional(v.number()),
-};
 
 const resolveArgs = {
   schoolId: v.id("schools"),
@@ -70,6 +64,7 @@ const reconciliationResultValidator = v.union(
     status: v.literal("computed"),
     dispatched: v.number(),
     confirmed: v.number(),
+    received: v.optional(v.number()),
     consumed: v.number(),
     variance: v.number(),
     variancePct: v.number(),
@@ -161,12 +156,13 @@ export async function declareDispatch(ctx: MutationCtx, args: DispatchArgs): Pro
 // ponytail: code lookup is .unique() per school; a same-day collision within
 // one school throws — regenerate on the supplier side if it ever happens.
 export async function resolveDelivery(ctx: MutationCtx, args: ResolveArgs): Promise<{ deliveryId: Id<"deliveries">; status: Doc<"deliveries">["status"] }> {
+  if (!Number.isSafeInteger(args.portionsReceived) || args.portionsReceived < 0) throw new ConvexError(DeliveryFailure.InvalidPortions);
   const hash = await hashConfirmCode(args.schoolId, args.code);
   const delivery = await ctx.db
     .query("deliveries")
     .withIndex("by_school_confirmCodeHash", (q) => q.eq("schoolId", args.schoolId).eq("confirmCodeHash", hash))
     .unique();
-  if (!delivery) {
+  if (!delivery || delivery.workflowVersion === 2) {
     throw new ConvexError(DeliveryFailure.UnknownCode);
   }
   if (delivery.status === "confirmed" || delivery.status === "disputed") {
@@ -212,12 +208,8 @@ export const sweepUnconfirmed = internalMutation({
 });
 
 export const declare = mutation({
-  args: dispatchArgs,
-  returns: v.object({ deliveryId: v.id("deliveries"), confirmCode: v.string() }),
-  handler: async (ctx, args) => {
-    const actor = await requireRole(ctx, DISPATCH_ROLES);
-    return await declareDispatch(ctx, { actor, ...args });
-  },
+  args: newDispatchArgs,
+  handler: async (ctx, args) => dispatchDelivery(ctx, await requireRole(ctx, DISPATCH_ROLES), args),
 });
 
 export const resolve = mutation({
@@ -225,6 +217,7 @@ export const resolve = mutation({
   returns: v.object({ deliveryId: v.id("deliveries"), status: deliveryStatus }),
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, CONFIRM_ROLES);
+    if (actor.role === "admin" && !args.note?.trim()) throw new ConvexError("A reason is required for central-admin confirmation.");
     await requireSchoolScope(ctx, args.schoolId);
     return await resolveDelivery(ctx, { actor, ...args });
   },
@@ -389,7 +382,8 @@ async function finaliseReconciliation(ctx: MutationCtx, args: ReconcileArgs): Pr
     .take(MAX_DELIVERIES_PER_DAY);
   const dispatched = deliveries.reduce((sum, row) => sum + row.portions, 0);
   const confirmed = deliveries.filter((row) => row.status === "confirmed").reduce((sum, row) => sum + (row.portionsReceived ?? 0), 0);
-  const totals = { dispatched, confirmed, consumed: args.consumedSoFar, ...computeVariance(confirmed, args.consumedSoFar) };
+  const received = deliveries.reduce((sum, row) => sum + (row.portionsReceived ?? 0), 0);
+  const totals = { dispatched, confirmed, received, consumed: args.consumedSoFar, ...computeVariance(confirmed, args.consumedSoFar) };
   const now = Date.now();
   const existing = await ctx.db
     .query("reconciliations")
@@ -413,6 +407,7 @@ async function finaliseReconciliation(ctx: MutationCtx, args: ReconcileArgs): Pr
     schoolId: args.schoolId,
     serviceDate: args.serviceDate,
   });
+  await flagIntegrity(ctx, { schoolId: args.schoolId, serviceDate: args.serviceDate });
   return { status: "computed", ...totals };
 }
 
@@ -469,7 +464,7 @@ export const reconciliationFor = query({
   args: { schoolId: v.id("schools"), serviceDate: v.string() },
   returns: v.union(
     v.null(),
-    v.object({ dispatched: v.number(), confirmed: v.number(), consumed: v.number(), variance: v.number(), variancePct: v.number(), computedAt: v.number() }),
+    v.object({ dispatched: v.number(), confirmed: v.number(), received: v.optional(v.number()), consumed: v.number(), variance: v.number(), variancePct: v.number(), computedAt: v.number() }),
   ),
   handler: async (ctx, args) => {
     await requireSchoolScope(ctx, args.schoolId);
@@ -480,7 +475,7 @@ export const reconciliationFor = query({
     if (!row) {
       return null;
     }
-    return { dispatched: row.dispatched, confirmed: row.confirmed, consumed: row.consumed, variance: row.variance, variancePct: row.variancePct, computedAt: row.computedAt };
+    return { dispatched: row.dispatched, confirmed: row.confirmed, received: row.received, consumed: row.consumed, variance: row.variance, variancePct: row.variancePct, computedAt: row.computedAt };
   },
 });
 

@@ -139,7 +139,7 @@ describe("supply chain: dispatch → confirm → reconcile → payment file (D10
     await dispatch(t, world, 12, "DK-2");
     await resolve(t, world, { code: first.confirmCode, portionsReceived: 20, action: "confirm" });
     const result = await t.run(async (ctx) => await reconcileDay(ctx, { schoolId: world.schoolId, serviceDate: TODAY }));
-    expect(result).toEqual({ status: "computed", dispatched: 32, confirmed: 20, consumed: SERVED_TODAY, variance: -7, variancePct: -35 });
+    expect(result).toEqual({ status: "computed", dispatched: 32, confirmed: 20, received: 20, consumed: SERVED_TODAY, variance: -7, variancePct: -35 });
     const row = await t.run(async (ctx) => await ctx.db.query("reconciliations").unique());
     expect(row?.consumed).toBe(SERVED_TODAY);
     expect(await eventTypes(t)).toContain("reconciliation.daily_computed");
