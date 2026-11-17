@@ -1,11 +1,14 @@
-# Dishi
+# Mlo: An Intelligent School Feeding Management and Communication System
 
-Dishi handles communication and reconciliation for school feeding in Nairobi primary schools.
+The current academic report is [Mlo_Project_Report.docx](docs/Mlo_Project_Report.docx).
+The [presentation rehearsal pack](docs/PRESENTATION_PREP.md) uses the same title.
+
+Mlo handles communication and reconciliation for school feeding in Nairobi primary schools.
 
 Food already moves: the county funds a supplier, the supplier cooks and delivers, and each
 student taps an NFC tag to collect a KES 5 meal. What's missing is information. Guardians
 don't know whether their child ate, suppliers guess how much to cook, and the county only
-sees totals after it's too late to act. Dishi records each meal as an event and sends that
+sees totals after it's too late to act. Mlo records each meal as an event and sends that
 information to the people who need it.
 
 ## Features
@@ -57,7 +60,7 @@ event catalogue, see
 
 ## Getting started
 
-**Prerequisites:** Node 20+, pnpm 11 and a Convex account.
+**Prerequisites:** Node 24 LTS, pnpm 11 and a Convex account.
 
 ```bash
 pnpm install
@@ -77,18 +80,37 @@ npx convex run users:assignRole '{"userId":"<users _id>","role":"admin"}'
 
 ## Configuration
 
+For production at **https://mlo.2003.studio**, follow the
+[Cloudflare Workers deployment guide](docs/cloudflare-deployment.md).
+
 Set Convex environment variables with `npx convex env set KEY value`. Don't commit any of
 them.
 
 | Variable | Needed for |
 |---|---|
 | `BETTER_AUTH_SECRET`, `SITE_URL` | Auth |
-| `TRUSTED_ORIGINS` | Extra origins, comma-separated (for example, a LAN IP for phone testing) |
+| `TRUSTED_ORIGINS` | Extra origins, comma-separated (include `https://dishi.2003.studio` for the phone reader tunnel) |
 | `USSD_TOKEN` | USSD callback path `/ussd/<token>` |
 | `DLR_TOKEN` | Delivery-report webhook `/dlr` |
 | `PAYMENT_TOKEN` | Wallet top-up events |
 | `AT_USERNAME`, `AT_API_KEY`, `AT_SENDER_ID` | Africa's Talking channel |
 | `CELCOM_URL`, `CELCOM_API_KEY`, `CELCOM_PARTNER_ID`, `CELCOM_SHORTCODE`, `CELCOM_PASS_TYPE` | Celcom channel |
+
+### Phone reader development
+
+The fixed reader address is `https://dishi.2003.studio/reader`. The Cloudflare
+tunnel's service URL is `http://localhost:3000` when `cloudflared` runs on the
+same machine as `pnpm dev`. Cloudflare supplies HTTPS for the phone; the local
+Next.js development server uses HTTP. Keep the server and tunnel connector running.
+
+`next.config.ts` allows the tunnel hostname. In the development Convex deployment,
+`TRUSTED_ORIGINS` must include `https://dishi.2003.studio` alongside any existing
+origins. Chrome on an NFC-capable Android phone can then use the reader without
+the insecure-origin flag.
+
+Reader credentials and pending taps are stored per origin. Before moving from a
+LAN URL, sync any pending taps there; sign in and provision the reader once at
+the fixed address. The new address cannot access the old origin's queue.
 
 To switch the SMS channel at runtime (the default is `console`, which only logs):
 

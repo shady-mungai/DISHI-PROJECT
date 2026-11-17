@@ -14,6 +14,11 @@ import type * as channels from "../channels.js";
 import type * as county from "../county.js";
 import type * as crons from "../crons.js";
 import type * as deliveries from "../deliveries.js";
+import type * as deliveryAssessment from "../deliveryAssessment.js";
+import type * as deliveryDashboard from "../deliveryDashboard.js";
+import type * as deliveryNotifications from "../deliveryNotifications.js";
+import type * as deliveryPhotos from "../deliveryPhotos.js";
+import type * as deliveryWorkflow from "../deliveryWorkflow.js";
 import type * as devices from "../devices.js";
 import type * as digest from "../digest.js";
 import type * as enrolment from "../enrolment.js";
@@ -30,6 +35,7 @@ import type * as lib_channels_types from "../lib/channels/types.js";
 import type * as lib_county from "../lib/county.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_deliveryReport from "../lib/deliveryReport.js";
+import type * as lib_deliveryWorkflow from "../lib/deliveryWorkflow.js";
 import type * as lib_enrolmentParser from "../lib/enrolmentParser.js";
 import type * as lib_events from "../lib/events.js";
 import type * as lib_gsm7 from "../lib/gsm7.js";
@@ -37,6 +43,7 @@ import type * as lib_hmac from "../lib/hmac.js";
 import type * as lib_mask from "../lib/mask.js";
 import type * as lib_metrics from "../lib/metrics.js";
 import type * as lib_monitor from "../lib/monitor.js";
+import type * as lib_photoAssessment from "../lib/photoAssessment.js";
 import type * as lib_policy from "../lib/policy.js";
 import type * as lib_predicate from "../lib/predicate.js";
 import type * as lib_retry from "../lib/retry.js";
@@ -76,6 +83,11 @@ declare const fullApi: ApiFromModules<{
   county: typeof county;
   crons: typeof crons;
   deliveries: typeof deliveries;
+  deliveryAssessment: typeof deliveryAssessment;
+  deliveryDashboard: typeof deliveryDashboard;
+  deliveryNotifications: typeof deliveryNotifications;
+  deliveryPhotos: typeof deliveryPhotos;
+  deliveryWorkflow: typeof deliveryWorkflow;
   devices: typeof devices;
   digest: typeof digest;
   enrolment: typeof enrolment;
@@ -92,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   "lib/county": typeof lib_county;
   "lib/dates": typeof lib_dates;
   "lib/deliveryReport": typeof lib_deliveryReport;
+  "lib/deliveryWorkflow": typeof lib_deliveryWorkflow;
   "lib/enrolmentParser": typeof lib_enrolmentParser;
   "lib/events": typeof lib_events;
   "lib/gsm7": typeof lib_gsm7;
@@ -99,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "lib/mask": typeof lib_mask;
   "lib/metrics": typeof lib_metrics;
   "lib/monitor": typeof lib_monitor;
+  "lib/photoAssessment": typeof lib_photoAssessment;
   "lib/policy": typeof lib_policy;
   "lib/predicate": typeof lib_predicate;
   "lib/retry": typeof lib_retry;
@@ -154,4 +168,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };

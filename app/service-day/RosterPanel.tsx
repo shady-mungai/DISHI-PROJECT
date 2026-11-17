@@ -3,10 +3,15 @@
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
-import Link from "next/link";
+import Link from "@/app/components/DateLink";
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { BUTTON_CLASS, INPUT_CLASS, SECONDARY_BUTTON_CLASS, SECTION_TITLE_CLASS } from "@/app/components/ui";
+import {
+  BUTTON_CLASS,
+  INPUT_CLASS,
+  SECONDARY_BUTTON_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/app/components/ui";
 
 const DEFAULT_RELATIONSHIP = "guardian";
 
@@ -29,7 +34,9 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
     try {
       setMessage(await action());
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Roster change failed");
+      setMessage(
+        caught instanceof Error ? caught.message : "Roster change failed",
+      );
     } finally {
       setBusy(false);
     }
@@ -39,18 +46,36 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
     if (leavingId === "") {
       return;
     }
+    if (
+      !window.confirm(
+        "Mark this pupil as left? They will no longer be expected from tomorrow.",
+      )
+    )
+      return;
     await run(async () => {
-      const result = await deactivate({ schoolId, studentId: leavingId, reason });
+      const result = await deactivate({
+        schoolId,
+        studentId: leavingId,
+        reason,
+      });
       setLeavingId("");
       setReason("");
-      return result === "deactivated" ? "Marked as left — no expectation from tomorrow." : "Already inactive.";
+      return result === "deactivated"
+        ? "Marked as left — no expectation from tomorrow."
+        : "Already inactive.";
     });
   }
 
   async function addStudent(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     await run(async () => {
-      await join({ schoolId, fullName, className, guardianMsisdn, guardianRelationship: DEFAULT_RELATIONSHIP });
+      await join({
+        schoolId,
+        fullName,
+        className,
+        guardianMsisdn,
+        guardianRelationship: DEFAULT_RELATIONSHIP,
+      });
       setFullName("");
       setClassName("");
       setGuardianMsisdn("");
@@ -60,33 +85,101 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
 
   return (
     <section className="flex flex-col gap-3">
+      <h2 className={SECTION_TITLE_CLASS}>Active pupils</h2>
+      <p>Roster changes take effect in tomorrow’s expectations.</p>
+      <ul className="flex flex-col gap-2">
+        {students?.map((student) => (
+          <li key={student._id} className="rounded-control bg-cream-light p-3">
+            {student.fullName} · {student.className}
+          </li>
+        ))}
+      </ul>
+      {students?.length === 0 && <p>No active pupils.</p>}
       <h2 className={SECTION_TITLE_CLASS}>Roster corrections</h2>
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <select value={leavingId} onChange={(e) => setLeavingId(e.target.value as Id<"students">)} className={INPUT_CLASS}>
-          <option value="">Child who left</option>
-          {students?.map((student) => (
-            <option key={student._id} value={student._id}>
-              {student.fullName} ({student.className})
-            </option>
-          ))}
-        </select>
-        <input placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} className={INPUT_CLASS} />
-        <button type="button" disabled={busy || leavingId === "" || !reason} className={SECONDARY_BUTTON_CLASS} onClick={() => void markLeft()}>
+        <label className="flex flex-col gap-1">
+          <span>Child who left</span>
+          <select
+            value={leavingId}
+            onChange={(e) => setLeavingId(e.target.value as Id<"students">)}
+            className={INPUT_CLASS}
+          >
+            <option value="">Child who left</option>
+            {students?.map((student) => (
+              <option key={student._id} value={student._id}>
+                {student.fullName} ({student.className})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>Reason</span>
+          <input
+            placeholder="Reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={busy || leavingId === "" || !reason}
+          className={SECONDARY_BUTTON_CLASS}
+          onClick={() => void markLeft()}
+        >
           Mark as left
         </button>
       </div>
-      <form onSubmit={addStudent} className="flex flex-wrap items-center gap-3 text-sm">
-        <input required placeholder="New child's name" value={fullName} onChange={(e) => setFullName(e.target.value)} className={INPUT_CLASS} />
-        <input required placeholder="Class" value={className} onChange={(e) => setClassName(e.target.value)} className={INPUT_CLASS} />
-        <input required placeholder="Guardian phone" value={guardianMsisdn} onChange={(e) => setGuardianMsisdn(e.target.value)} className={INPUT_CLASS} />
+      <form
+        onSubmit={addStudent}
+        className="flex flex-wrap items-center gap-3 text-sm"
+      >
+        <label className="flex flex-col gap-1">
+          <span>New child&apos;s name</span>
+          <input
+            required
+            placeholder="New child's name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>Class</span>
+          <input
+            required
+            placeholder="Class"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>Guardian phone</span>
+          <input
+            required
+            placeholder="Guardian phone"
+            value={guardianMsisdn}
+            onChange={(e) => setGuardianMsisdn(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </label>
         <button type="submit" disabled={busy} className={BUTTON_CLASS}>
           Add child
         </button>
       </form>
-      <p className="text-sm text-ink/60">
-        Tag lost or reissued? <Link href="/reader" className="underline">Assign a tag on the reader page</Link>.
+      <p className="text-sm text-ink/80">
+        Tag lost or reissued?{" "}
+        <Link href="/reader" className="underline">
+          Assign a tag on the reader page
+        </Link>
+        .
       </p>
-      {message && <p className="text-sm text-ink/70">{message}</p>}
+      {message && (
+        <p role="status" className="text-sm text-ink/80">
+          {message}
+        </p>
+      )}
     </section>
   );
 }

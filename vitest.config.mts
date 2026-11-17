@@ -1,9 +1,10 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: { alias: { "@": new URL(".", import.meta.url).pathname } },
   test: {
     environment: "edge-runtime",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "convex/**/*.test.ts"],
     server: { deps: { inline: ["convex-test"] } },
   },
 });

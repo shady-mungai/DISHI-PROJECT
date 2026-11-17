@@ -24,6 +24,7 @@ type SchoolDayRow = {
   forecast: number | null;
   dispatched: number;
   confirmed: number;
+  received: number | null;
   consumed: number;
   variance: number;
   variancePct: number;
@@ -56,6 +57,7 @@ async function schoolLedger(ctx: QueryCtx, school: Doc<"schools">, range: DateRa
     forecast: forecasts.get(row.serviceDate) ?? null,
     dispatched: row.dispatched,
     confirmed: row.confirmed,
+    received: row.received ?? null,
     consumed: row.consumed,
     variance: row.variance,
     variancePct: row.variancePct,
@@ -127,6 +129,7 @@ export const overview = query({
         forecast: v.union(v.number(), v.null()),
         dispatched: v.number(),
         confirmed: v.number(),
+        received: v.union(v.number(), v.null()),
         consumed: v.number(),
         variance: v.number(),
         variancePct: v.number(),

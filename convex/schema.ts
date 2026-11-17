@@ -53,6 +53,9 @@ export const overrideReason = v.union(
 
 export const forecastConfidence = v.union(v.literal("low"), v.literal("medium"), v.literal("high"));
 
+export const photoReview = v.union(v.literal("pending"), v.literal("clear"), v.literal("flagged"), v.literal("failed"));
+export const photoFindings = v.object({ foodVisible: v.boolean(), clarity: v.union(v.literal("clear"), v.literal("unclear")), unrelatedContent: v.boolean(), description: v.string() });
+
 export default defineSchema({
   users: defineTable({
     authUserId: v.string(),
@@ -228,10 +231,75 @@ export default defineSchema({
     resolvedBy: v.optional(v.id("users")),
     resolvedAt: v.optional(v.number()),
     note: v.optional(v.string()),
+    workflowVersion: v.optional(v.number()),
+    reference: v.optional(v.string()),
+    requestKey: v.optional(v.string()),
+    requestFingerprint: v.optional(v.string()),
+    expectedArrivalAt: v.optional(v.number()),
+    overdueAt: v.optional(v.number()),
+    receiptRecordedAt: v.optional(v.number()),
+    receiptConfirmedAt: v.optional(v.number()),
+    receiptBy: v.optional(v.id("users")),
+    receiptMethod: v.optional(v.union(v.literal("photo"), v.literal("code"))),
+    reportedProblem: v.optional(v.string()),
+    evidenceId: v.optional(v.id("deliveryEvidence")),
+    missingEvidence: v.optional(v.boolean()),
+    reviewRequired: v.optional(v.boolean()),
+    reviewResolvedAt: v.optional(v.number()),
+    photoReview: v.optional(photoReview),
+    photoGeneration: v.optional(v.number()),
+    photoAttempts: v.optional(v.number()),
+    photoModel: v.optional(v.string()),
+    photoAssessedAt: v.optional(v.number()),
+    photoFindings: v.optional(photoFindings),
+    photoError: v.optional(v.string()),
   })
     .index("by_school_serviceDate", ["schoolId", "serviceDate"])
     .index("by_school_confirmCodeHash", ["schoolId", "confirmCodeHash"])
-    .index("by_status_serviceDate", ["status", "serviceDate"]),
+    .index("by_status_serviceDate", ["status", "serviceDate"])
+    .index("by_serviceDate", ["serviceDate"])
+    .index("by_requestKey", ["requestKey"])
+    .index("by_declaredBy_and_serviceDate", ["declaredBy", "serviceDate"])
+    .index("by_declaredBy_and_status", ["declaredBy", "status"])
+    .index("by_schoolId_and_status", ["schoolId", "status"])
+    .index("by_reviewRequired", ["reviewRequired"]),
+
+  deliveryEvidence: defineTable({
+    deliveryId: v.id("deliveries"), uploadedBy: v.id("users"), storageId: v.id("_storage"),
+    contentType: v.string(), size: v.number(), requestKey: v.string(),
+  }).index("by_requestKey", ["requestKey"]),
+
+  receiptCodes: defineTable({
+    deliveryId: v.id("deliveries"), hash: v.string(), expiresAt: v.number(), generation: v.number(),
+    portionsReceived: v.number(), problem: v.string(), requestedBy: v.id("users"),
+    usedAt: v.optional(v.number()), failures: v.number(), cooldownUntil: v.optional(v.number()),
+  }).index("by_deliveryId", ["deliveryId"]),
+
+  deliveryOperations: defineTable({
+    key: v.string(), fingerprint: v.string(), deliveryId: v.id("deliveries"),
+    status: v.string(), expiresAt: v.optional(v.number()),
+  }).index("by_key", ["key"]),
+
+  deliveryTimeline: defineTable({
+    deliveryId: v.id("deliveries"), at: v.number(), type: v.string(),
+    actorId: v.optional(v.id("users")), detail: v.string(),
+  }).index("by_deliveryId", ["deliveryId"]),
+
+  operationalContacts: defineTable({
+    recipientKey: v.string(), name: v.string(), msisdn: v.string(), active: v.boolean(),
+  }).index("by_recipientKey", ["recipientKey"]),
+
+  deliveryInbox: defineTable({
+    recipientKey: v.string(), dedupeKey: v.string(), deliveryId: v.id("deliveries"),
+    body: v.string(), readAt: v.optional(v.number()),
+  }).index("by_recipientKey", ["recipientKey"]).index("by_dedupeKey", ["dedupeKey"]),
+
+  deliverySms: defineTable({
+    deliveryId: v.id("deliveries"), recipientKey: v.string(), dedupeKey: v.string(),
+    msisdn: v.optional(v.string()), body: v.string(),
+    status: v.union(v.literal("queued"), v.literal("sending"), v.literal("sent"), v.literal("failed")),
+    failureReason: v.optional(v.string()), providerMessageId: v.optional(v.string()), attempts: v.number(),
+  }).index("by_dedupeKey", ["dedupeKey"]).index("by_deliveryId", ["deliveryId"]).index("by_status", ["status"]),
 
   forecasts: defineTable({
     schoolId: v.id("schools"),
@@ -246,6 +314,7 @@ export default defineSchema({
     serviceDate: v.string(),
     dispatched: v.number(),
     confirmed: v.number(),
+    received: v.optional(v.number()),
     consumed: v.number(),
     variance: v.number(),
     variancePct: v.number(),

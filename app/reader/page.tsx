@@ -12,5 +12,9 @@ const ReaderPanel = dynamic(() => import("./ReaderPanel"), {
 });
 
 export default function ReaderPage() {
-  return <SchoolGate>{(schoolId: Id<"schools">) => <ReaderPanel schoolId={schoolId} />}</SchoolGate>;
+  return (
+    <SchoolGate>
+      {(schoolId: Id<"schools">) => <ReaderPanel schoolId={schoolId} />}
+    </SchoolGate>
+  );
 }

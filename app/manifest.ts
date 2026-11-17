@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Dishi Reader",
-    short_name: "Dishi",
+    name: "Mlo Reader",
+    short_name: "Mlo",
     description: "School meal tap reader",
     start_url: "/reader",
     display: "standalone",

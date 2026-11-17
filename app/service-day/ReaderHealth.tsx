@@ -23,20 +23,35 @@ function useNow(): number {
 export function ReaderHealth({ schoolId }: { schoolId: Id<"schools"> }) {
   const readers = useQuery(api.readers.fleet, { schoolId });
   const now = useNow();
-  const silent = readers?.filter((reader) => reader.lastSeenAt !== undefined && now - reader.lastSeenAt > reader.silentAfterMs) ?? [];
+  const silent =
+    readers?.filter(
+      (reader) =>
+        reader.lastSeenAt !== undefined &&
+        now - reader.lastSeenAt > reader.silentAfterMs,
+    ) ?? [];
 
   return (
     <section className="flex flex-col gap-2">
       <h2 className={SECTION_TITLE_CLASS}>Readers</h2>
-      {silent.length > 0 && <p className={SILENT_CLASS}>{silent.length} reader(s) have stopped reporting.</p>}
-      {readers?.length === 0 && <p className="text-sm text-ink/60">No readers provisioned.</p>}
+      {silent.length > 0 && (
+        <p className={SILENT_CLASS}>
+          {silent.length} reader(s) have stopped reporting.
+        </p>
+      )}
+      {readers?.length === 0 && (
+        <p className="text-sm text-ink/80">No readers provisioned.</p>
+      )}
       <ul className="flex flex-col gap-1 text-sm">
         {readers?.map((reader) => (
           <li key={reader.deviceRef} className={ROW_CLASS}>
-            <span className="flex-1 font-mono">{reader.deviceRef}</span>
-            <span className="text-ink/60">{reader.firmwareVersion}</span>
-            <span className={silent.includes(reader) ? SILENT_CLASS : "text-ink/60"}>
-              {reader.lastSeenAt === undefined ? "never synced" : `seen ${new Date(reader.lastSeenAt).toLocaleString()}`}
+            <span className="flex-1 font-sans">{reader.deviceRef}</span>
+            <span className="text-ink/80">{reader.firmwareVersion}</span>
+            <span
+              className={silent.includes(reader) ? SILENT_CLASS : "text-ink/80"}
+            >
+              {reader.lastSeenAt === undefined
+                ? "never synced"
+                : `seen ${new Date(reader.lastSeenAt).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })}`}
             </span>
           </li>
         ))}
