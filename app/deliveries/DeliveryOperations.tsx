@@ -6,6 +6,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/app/auth-client";
+import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import {
   ALERT_CLASS,
@@ -80,15 +81,9 @@ async function photoFetch(query: string, init?: RequestInit) {
     fetchOptions: { throw: false },
   });
   if (!data?.token) throw new Error("Sign in again to access delivery photos.");
-  const base =
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ??
-    process.env.NEXT_PUBLIC_CONVEX_URL?.replace(
-      /\.convex\.cloud$/,
-      ".convex.site",
-    );
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${data.token}`);
-  return await fetch(`${base}/delivery-photo${query}`, {
+  return await fetch(`${convexSiteUrl}/delivery-photo${query}`, {
     ...init,
     headers,
     cache: "no-store",

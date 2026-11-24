@@ -2,6 +2,7 @@
 
 import { hmacSha256Hex } from "@/convex/lib/hmac";
 import { normaliseTagUid } from "@/convex/lib/tagUid";
+import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const DEVICE_STORAGE_KEY = "dishi.reader.device";
@@ -50,7 +51,7 @@ export function useReaderDevice(): [ReaderDevice | null, (device: ReaderDevice) 
 
 async function postSignedBatch(device: ReaderDevice, events: QueuedTap[]): Promise<IngestVerdict[]> {
   const bodyBytes = new TextEncoder().encode(JSON.stringify({ events }));
-  const response = await fetch(`${process.env.NEXT_PUBLIC_CONVEX_SITE_URL}${INGEST_PATH}`, {
+  const response = await fetch(`${convexSiteUrl}${INGEST_PATH}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
