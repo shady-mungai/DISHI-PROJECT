@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, internalMutation } from "./_generated/server";
+import { AuditType, recordAudit } from "./admin";
 import { requireSchoolScope } from "./lib/authz";
 import { serviceStartFor, toServiceDate } from "./lib/dates";
 import { hmacSha256Hex, sha256Hex } from "./lib/hmac";
@@ -46,24 +47,28 @@ export const prepare = internalMutation({
     windowMinutes: v.number(),
   }),
   handler: async (ctx, args): Promise<PreparedSchool> => {
-    await requireSchoolScope(ctx, args.schoolId);
+    const actor = await requireSchoolScope(ctx, args.schoolId);
 
     const deviceRef = `${SIM_DEVICE_REF}:${args.schoolId}`;
+    const freshSecretHash = () => sha256Hex(`${deviceRef}:${crypto.randomUUID()}`);
     let device = await ctx.db
       .query("devices")
       .withIndex("by_deviceRef", (q) => q.eq("deviceRef", deviceRef))
       .unique();
     if (!device) {
-      const secretHash = await sha256Hex(`${deviceRef}:${crypto.randomUUID()}`);
       const deviceId = await ctx.db.insert("devices", {
         deviceRef,
         schoolId: args.schoolId,
-        secretHash,
+        secretHash: await freshSecretHash(),
         firmwareVersion: SIM_DEVICE_FIRMWARE,
         queueDepth: 0,
         clockSkewSeconds: 0,
       });
       device = (await ctx.db.get(deviceId))!;
+    } else if (device.revokedAt !== undefined) {
+      await ctx.db.patch(device._id, { secretHash: await freshSecretHash(), revokedAt: undefined });
+      await recordAudit(ctx, actor, AuditType.DeviceReprovisioned, { device_id: deviceRef, school_id: args.schoolId });
+      device = (await ctx.db.get(device._id))!;
     }
 
     const students = await ctx.db

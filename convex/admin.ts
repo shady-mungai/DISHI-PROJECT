@@ -46,6 +46,7 @@ export const AuditType = {
   RuleToggled: "admin.rule_toggled",
   SettingChanged: "admin.setting_changed",
   DeviceRevoked: "admin.device_revoked",
+  DeviceReprovisioned: "admin.device_reprovisioned",
 } as const;
 
 // FR-802 / NFR-405: every administrative action is an event in the
@@ -53,7 +54,7 @@ export const AuditType = {
 // skips the admin.* prefix, so this log outlives operational data.
 const AUDITED_TYPES = [...Object.values(AuditType), "meal.override_served", "student.deactivated", "student.tag_assigned"] as const;
 
-async function recordAudit(ctx: MutationCtx, actor: Doc<"users">, type: string, payload: Record<string, string | number | boolean>): Promise<void> {
+export async function recordAudit(ctx: MutationCtx, actor: Doc<"users">, type: string, payload: Record<string, string | number | boolean>): Promise<void> {
   const now = Date.now();
   const eventId = `${type}:${actor._id}:${now}`;
   await recordEvent(ctx, {
