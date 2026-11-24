@@ -3,6 +3,8 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { registerFor } from "./attendance";
+import { classifyMiss, type ServiceDayContext } from "./lib/attendance";
 import { requireSchoolScope } from "./lib/authz";
 import { toServiceDate } from "./lib/dates";
 import { recordEvent } from "./lib/events";
@@ -223,7 +225,60 @@ async function startServiceDay(
   });
 }
 
-// FR-208: every expectation still pending at the cutoff becomes meal.missed.
+type SweepDay = ServiceDayContext & { absent: ReadonlySet<Id<"students">> };
+
+const MAX_DELIVERIES_PER_DAY = 100;
+
+async function serviceDayContext(
+  ctx: QueryCtx,
+  args: { schoolId: Id<"schools">; serviceDate: string; windowEnd: number },
+): Promise<SweepDay> {
+  const register = await registerFor(ctx, args.schoolId, args.serviceDate);
+  const deliveries = await ctx.db
+    .query("deliveries")
+    .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", args.schoolId).eq("serviceDate", args.serviceDate))
+    .take(MAX_DELIVERIES_PER_DAY);
+  const portionsAvailable = deliveries
+    .filter((delivery) => (delivery.receiptRecordedAt ?? delivery.resolvedAt ?? 0) <= args.windowEnd)
+    .reduce((sum, delivery) => sum + (delivery.portionsReceived ?? 0), 0);
+  return {
+    registerTaken: register !== null,
+    absent: new Set(register?.absentStudentIds ?? []),
+    portionsAvailable,
+    mealsServed: await countExpectations(ctx, { ...args, status: "fulfilled" }),
+  };
+}
+
+async function settleExpectation(
+  ctx: MutationCtx,
+  args: { expectation: Doc<"expectations">; day: SweepDay; now: number },
+): Promise<void> {
+  const { expectation, day, now } = args;
+  const isAbsent = day.absent.has(expectation.studentId);
+  const missReason = isAbsent ? undefined : classifyMiss(day);
+  await ctx.db.patch(expectation._id, isAbsent ? { status: "absent" } : { status: "missed", missReason });
+  const type = isAbsent ? "meal.absent" : "meal.missed";
+  await recordEvent(ctx, {
+    eventId: `${type}:${expectation._id}`,
+    type,
+    occurredAt: now,
+    recordedAt: now,
+    schemaVersion: SCHEMA_VERSION,
+    correlationId: expectation._id,
+    payload: {
+      student_id: expectation.studentId,
+      service_date: expectation.serviceDate,
+      expectation_id: expectation._id,
+      ...(missReason && { miss_reason: missReason }),
+    },
+    schoolId: expectation.schoolId,
+    studentId: expectation.studentId,
+    serviceDate: expectation.serviceDate,
+  });
+}
+
+// FR-208: every expectation still pending at the cutoff becomes meal.missed,
+// or meal.absent when the day's register marked the pupil absent.
 // Swept rows leave the "pending" index range, so a fresh take() is the next
 // batch — no cursor needed.
 async function sweepPage(
@@ -241,24 +296,11 @@ async function sweepPage(
     .take(SWEEP_BATCH_SIZE);
 
   const now = Date.now();
-  for (const expectation of pending) {
-    await ctx.db.patch(expectation._id, { status: "missed" });
-    await recordEvent(ctx, {
-      eventId: `meal.missed:${expectation._id}`,
-      type: "meal.missed",
-      occurredAt: now,
-      recordedAt: now,
-      schemaVersion: SCHEMA_VERSION,
-      correlationId: expectation._id,
-      payload: {
-        student_id: expectation.studentId,
-        service_date: expectation.serviceDate,
-        expectation_id: expectation._id,
-      },
-      schoolId: expectation.schoolId,
-      studentId: expectation.studentId,
-      serviceDate: expectation.serviceDate,
-    });
+  if (pending.length > 0) {
+    const day = await serviceDayContext(ctx, { ...args, windowEnd: pending[0].windowEnd });
+    for (const expectation of pending) {
+      await settleExpectation(ctx, { expectation, day, now });
+    }
   }
 
   const chained = pending.length === SWEEP_BATCH_SIZE;
@@ -392,6 +434,7 @@ export const daySummary = query({
     pending: v.number(),
     fulfilled: v.number(),
     missed: v.number(),
+    absent: v.number(),
   }),
   handler: async (ctx, args) => {
     await requireSchoolScope(ctx, args.schoolId);
@@ -399,6 +442,7 @@ export const daySummary = query({
       pending: await countExpectations(ctx, { ...args, status: "pending" }),
       fulfilled: await countExpectations(ctx, { ...args, status: "fulfilled" }),
       missed: await countExpectations(ctx, { ...args, status: "missed" }),
+      absent: await countExpectations(ctx, { ...args, status: "absent" }),
     };
   },
 });

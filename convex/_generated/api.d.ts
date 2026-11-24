@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as channels from "../channels.js";
 import type * as county from "../county.js";
@@ -26,6 +27,7 @@ import type * as enrolment_parsePdf from "../enrolment/parsePdf.js";
 import type * as expectations from "../expectations.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
+import type * as lib_attendance from "../lib/attendance.js";
 import type * as lib_authz from "../lib/authz.js";
 import type * as lib_channels_africasTalking from "../lib/channels/africasTalking.js";
 import type * as lib_channels_celcom from "../lib/channels/celcom.js";
@@ -36,6 +38,7 @@ import type * as lib_county from "../lib/county.js";
 import type * as lib_dates from "../lib/dates.js";
 import type * as lib_deliveryReport from "../lib/deliveryReport.js";
 import type * as lib_deliveryWorkflow from "../lib/deliveryWorkflow.js";
+import type * as lib_dishInsights from "../lib/dishInsights.js";
 import type * as lib_enrolmentParser from "../lib/enrolmentParser.js";
 import type * as lib_events from "../lib/events.js";
 import type * as lib_gsm7 from "../lib/gsm7.js";
@@ -78,6 +81,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  attendance: typeof attendance;
   auth: typeof auth;
   channels: typeof channels;
   county: typeof county;
@@ -95,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   expectations: typeof expectations;
   http: typeof http;
   ingest: typeof ingest;
+  "lib/attendance": typeof lib_attendance;
   "lib/authz": typeof lib_authz;
   "lib/channels/africasTalking": typeof lib_channels_africasTalking;
   "lib/channels/celcom": typeof lib_channels_celcom;
@@ -105,6 +110,7 @@ declare const fullApi: ApiFromModules<{
   "lib/dates": typeof lib_dates;
   "lib/deliveryReport": typeof lib_deliveryReport;
   "lib/deliveryWorkflow": typeof lib_deliveryWorkflow;
+  "lib/dishInsights": typeof lib_dishInsights;
   "lib/enrolmentParser": typeof lib_enrolmentParser;
   "lib/events": typeof lib_events;
   "lib/gsm7": typeof lib_gsm7;

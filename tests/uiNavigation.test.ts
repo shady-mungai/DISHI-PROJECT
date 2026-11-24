@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   schoolId: "school-id",
   params: new URLSearchParams("date=2026-10-20"),
   summary: undefined as
-    { pending: number; fulfilled: number; missed: number } | undefined,
+    { pending: number; fulfilled: number; missed: number; absent: number } | undefined,
 }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => state.params,
@@ -123,7 +123,7 @@ describe("focused workspace pages", () => {
     expect(state.queries).not.toContain("notifications:recentForSchool");
   });
   it("puts service work before counts and explains the recording date before opening the reader", () => {
-    state.summary = { fulfilled: 420, pending: 74, missed: 6 };
+    state.summary = { fulfilled: 420, pending: 74, missed: 6, absent: 0 };
     const html = renderToStaticMarkup(
       createElement(SchoolWorkspace, { page: "Meal service" }),
     );
@@ -145,7 +145,7 @@ describe("focused workspace pages", () => {
     );
     expect(html).toContain("Loading service counts");
     expect(html).not.toContain("<dd>0</dd>");
-    state.summary = { fulfilled: 420, pending: 74, missed: 6 };
+    state.summary = { fulfilled: 420, pending: 74, missed: 6, absent: 0 };
     html = renderToStaticMarkup(
       createElement(SchoolWorkspace, { page: "Overview" }),
     );
@@ -153,7 +153,7 @@ describe("focused workspace pages", () => {
       html.indexOf("Meal service summary"),
     );
     expect(html.match(/<dd>420<\/dd>/g)).toHaveLength(1);
-    state.summary = { fulfilled: 0, pending: 0, missed: 0 };
+    state.summary = { fulfilled: 0, pending: 0, missed: 0, absent: 0 };
     html = renderToStaticMarkup(
       createElement(SchoolWorkspace, { page: "Overview" }),
     );
@@ -178,7 +178,7 @@ describe("focused workspace pages", () => {
   it("admin dispatch and payment file destinations remain separate", () => {
     state.role = "admin";
     renderToStaticMarkup(createElement(DeliveryGate));
-    expect(state.queries).toEqual(["deliveries:listSchools"]);
+    expect(state.queries).toEqual(["deliveries:listSchools", "supplier:recentDishes"]);
     state.queries = [];
     renderToStaticMarkup(createElement(DeliveryGate, { payment: true }));
     expect(state.queries).toEqual(["deliveries:paymentFile"]);

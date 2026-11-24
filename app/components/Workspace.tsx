@@ -9,6 +9,7 @@ export const destinations = {
   school: [
     ["", "Overview"],
     ["/service", "Meal service"],
+    ["/register", "Attendance register"],
     ["/pupils", "Pupils"],
     ["/deliveries", "Deliveries"],
     ["/readers", "Readers"],
@@ -20,6 +21,7 @@ export const destinations = {
     ["/dispatch", "Declare dispatch"],
     ["/reconciliation", "Reconciliation"],
     ["/accuracy", "Forecast accuracy"],
+    ["/insights", "Dish and attendance insights"],
   ],
   county: [
     ["", "Overview"],

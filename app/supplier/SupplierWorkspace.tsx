@@ -17,6 +17,7 @@ import {
 import { useQuery } from "convex/react";
 import Link from "@/app/components/DateLink";
 import { useUrlDate } from "@/app/components/useUrlDate";
+import { InsightsPanel } from "@/app/supplier/InsightsPanel";
 
 import {
   ActiveDeliveries,
@@ -158,6 +159,8 @@ function SupplierPanel({
           </div>
         </section>
       )}
+
+      {page === "Dish and attendance insights" && <InsightsPanel from={from} to={to} />}
 
       {page === "Reconciliation" && (
         <section className="flex flex-col gap-2">

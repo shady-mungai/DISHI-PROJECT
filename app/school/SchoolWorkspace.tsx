@@ -6,6 +6,7 @@ import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { SchoolGate } from "@/app/components/SchoolGate";
 import { OverridePanel } from "@/app/service-day/OverridePanel";
 import { ReaderHealth } from "@/app/service-day/ReaderHealth";
+import { RegisterPanel } from "@/app/service-day/RegisterPanel";
 import { RosterPanel } from "@/app/service-day/RosterPanel";
 import { useAction, useMutation, useQuery } from "convex/react";
 import Link from "@/app/components/DateLink";
@@ -90,7 +91,7 @@ function ServiceDayPanel({
   const [batchSize, setBatchSize] = useState(DEFAULT_BATCH_SIZE);
 
   const expected = summary
-    ? summary.pending + summary.fulfilled + summary.missed
+    ? summary.pending + summary.fulfilled + summary.missed + summary.absent
     : undefined;
 
   async function trigger(run: () => Promise<string>) {
@@ -214,6 +215,10 @@ function ServiceDayPanel({
                   <dt>Missed</dt>
                   <dd>{summary.missed.toLocaleString("en-KE")}</dd>
                 </div>
+                <div>
+                  <dt>Absent</dt>
+                  <dd>{summary.absent.toLocaleString("en-KE")}</dd>
+                </div>
               </dl>
               {expected === 0 && (
                 <p className="mt-3 text-sm text-muted">
@@ -233,6 +238,7 @@ function ServiceDayPanel({
           </div>
         </>
       )}
+      {page === "Attendance register" && <RegisterPanel schoolId={schoolId} />}
       {page === "Communications" && <DeliveryInbox />}
       {page === "Readers" && (
         <>

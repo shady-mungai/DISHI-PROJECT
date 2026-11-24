@@ -93,12 +93,14 @@ async function photoFetch(query: string, init?: RequestInit) {
 export function SupplierDispatch() {
   const schools = useQuery(api.deliveries.listSchools);
   const dispatch = useMutation(api.deliveryWorkflow.dispatch);
+  const recentDishes = useQuery(api.supplier.recentDishes);
   const task = useTask();
   const key = useRequestId();
   const [schoolId, setSchool] = useState("");
   const [portions, setPortions] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [docketRef, setDocket] = useState("");
+  const [dish, setDish] = useState("");
   const [result, setResult] = useState<{
     reference: string;
     expectedArrivalAt: number;
@@ -120,6 +122,7 @@ export function SupplierDispatch() {
               portions: Number(portions),
               vehicle,
               docketRef,
+              dish,
             };
             const sent = await dispatch({ ...input, requestId: key(input) });
             setResult(sent);
@@ -177,6 +180,22 @@ export function SupplierDispatch() {
             onChange={(e) => setDocket(e.target.value)}
             className={INPUT_CLASS}
           />
+        </label>
+        <label className="flex flex-col gap-1">
+          Dish served
+          <input
+            maxLength={60}
+            list="recent-dishes"
+            placeholder="e.g. githeri"
+            value={dish}
+            onChange={(e) => setDish(e.target.value)}
+            className={INPUT_CLASS}
+          />
+          <datalist id="recent-dishes">
+            {recentDishes?.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
         </label>
         <button
           disabled={task.busy || !schools?.length}

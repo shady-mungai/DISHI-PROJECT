@@ -14,7 +14,10 @@ export const expectationStatus = v.union(
   v.literal("pending"),
   v.literal("fulfilled"),
   v.literal("missed"),
+  v.literal("absent"),
 );
+
+export const missReason = v.union(v.literal("supply"), v.literal("present"), v.literal("unknown"));
 
 export const eventPayload = v.record(
   v.string(),
@@ -55,6 +58,14 @@ export const forecastConfidence = v.union(v.literal("low"), v.literal("medium"),
 
 export const photoReview = v.union(v.literal("pending"), v.literal("clear"), v.literal("flagged"), v.literal("failed"));
 export const photoFindings = v.object({ foodVisible: v.boolean(), clarity: v.union(v.literal("clear"), v.literal("unclear")), unrelatedContent: v.boolean(), description: v.string() });
+
+export const dayAttendance = v.object({
+  registerTaken: v.boolean(),
+  absent: v.number(),
+  missedPresent: v.number(),
+  missedSupply: v.number(),
+  missedUnknown: v.number(),
+});
 
 export default defineSchema({
   users: defineTable({
@@ -163,6 +174,7 @@ export default defineSchema({
     windowEnd: v.number(),
     cutoffAt: v.number(),
     status: expectationStatus,
+    missReason: v.optional(missReason),
   })
     .index("by_student_serviceDate", ["studentId", "serviceDate"])
     .index("by_school_serviceDate_status", ["schoolId", "serviceDate", "status"]),
@@ -253,6 +265,7 @@ export default defineSchema({
     photoAssessedAt: v.optional(v.number()),
     photoFindings: v.optional(photoFindings),
     photoError: v.optional(v.string()),
+    dish: v.optional(v.string()),
   })
     .index("by_school_serviceDate", ["schoolId", "serviceDate"])
     .index("by_school_confirmCodeHash", ["schoolId", "confirmCodeHash"])
@@ -319,7 +332,16 @@ export default defineSchema({
     variance: v.number(),
     variancePct: v.number(),
     computedAt: v.number(),
+    attendance: v.optional(dayAttendance),
   }).index("by_school_serviceDate", ["schoolId", "serviceDate"]),
+
+  registers: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    absentStudentIds: v.array(v.id("students")),
+    takenBy: v.id("users"),
+    takenAt: v.number(),
+  }).index("by_schoolId_and_serviceDate", ["schoolId", "serviceDate"]),
 
   settings: defineTable({
     key: v.string(),

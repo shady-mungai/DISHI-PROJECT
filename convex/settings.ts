@@ -20,6 +20,7 @@ export const SettingKey = {
   QuietHoursEndHour: "quietHoursEndHour",
   StalledServiceThresholdPct: "stalledServiceThresholdPct",
   VarianceTolerancePct: "varianceTolerancePct",
+  DishInsightsMinDays: "dishInsightsMinDays",
   VarianceStreakDays: "varianceStreakDays",
   OverrideRateTolerancePct: "overrideRateTolerancePct",
   ClockSkewToleranceSeconds: "clockSkewToleranceSeconds",

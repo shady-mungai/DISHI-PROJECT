@@ -5,8 +5,10 @@ import type { QueryCtx } from "./_generated/server";
 import { reconciliationsNewestFirst } from "./county";
 import { requireRole } from "./lib/authz";
 import { addDays } from "./lib/dates";
+import { attendanceByWeekday, DEFAULT_MIN_DISH_DAYS, dishInsights, type DishInsight, type InsightDay, type WeekdayAttendance } from "./lib/dishInsights";
 import { forecastAccuracy, type ForecastAccuracy } from "./lib/monitor";
 import { deliveryStatus } from "./schema";
+import { readNumberSetting, SettingKey } from "./settings";
 
 const SUPPLIER_ROLES = ["supplier", "county", "admin"] as const;
 const MAX_SCHOOLS = 100;
@@ -14,6 +16,9 @@ const MAX_FORECAST_DAYS = 366;
 const MAX_UNCONFIRMED = 200;
 const MAX_STALLED = 200;
 const STALLED_EVENT = "service.stalled";
+const MAX_DELIVERIES_IN_RANGE = 2000;
+const MAX_RECENT_DISHES = 50;
+const RECENT_DELIVERIES_SCANNED = 200;
 
 type DateRange = { from: string; to: string };
 
@@ -146,5 +151,112 @@ export const overview = query({
   handler: async (ctx, args) => {
     await requireRole(ctx, SUPPLIER_ROLES);
     return await supplierOverview(ctx, args);
+  },
+});
+
+export type SupplierInsights = { minDays: number; dishes: DishInsight[]; weekdays: WeekdayAttendance[] };
+
+async function nonFullDays(ctx: QueryCtx, range: DateRange): Promise<Set<string>> {
+  const calendar = await ctx.db
+    .query("academicCalendar")
+    .withIndex("by_serviceDate", (q) => q.gte("serviceDate", range.from).lte("serviceDate", range.to))
+    .take(MAX_FORECAST_DAYS);
+  return new Set(calendar.filter((day) => day.dayType !== "full").map((day) => day.serviceDate));
+}
+
+// A day counts for a dish only when every delivery that day names the same dish.
+function soleDish(deliveries: ReadonlyArray<Doc<"deliveries">>): string | null {
+  const dishes = new Set(deliveries.map((delivery) => delivery.dish ?? ""));
+  const [only] = dishes;
+  return dishes.size === 1 && only ? only : null;
+}
+
+async function dishesByDay(ctx: QueryCtx, schoolId: Id<"schools">, range: DateRange): Promise<Map<string, string | null>> {
+  const deliveries = await ctx.db
+    .query("deliveries")
+    .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", schoolId).gte("serviceDate", range.from).lte("serviceDate", range.to))
+    .take(MAX_DELIVERIES_IN_RANGE);
+  const byDay = new Map<string, Doc<"deliveries">[]>();
+  for (const delivery of deliveries) {
+    byDay.set(delivery.serviceDate, [...(byDay.get(delivery.serviceDate) ?? []), delivery]);
+  }
+  return new Map([...byDay].map(([serviceDate, rows]) => [serviceDate, soleDish(rows)]));
+}
+
+async function schoolInsightDays(ctx: QueryCtx, school: Doc<"schools">, range: DateRange, skipped: ReadonlySet<string>): Promise<InsightDay[]> {
+  const dishes = await dishesByDay(ctx, school._id, range);
+  const reconciliations = await reconciliationsNewestFirst(ctx, school._id, range);
+  return reconciliations
+    .filter((row) => !skipped.has(row.serviceDate))
+    .map((row) => ({
+      schoolId: school._id,
+      serviceDate: row.serviceDate,
+      dish: dishes.get(row.serviceDate) ?? null,
+      received: row.received ?? row.confirmed,
+      consumed: row.consumed,
+      attendance: row.attendance ?? null,
+    }));
+}
+
+// Aggregates only: suppliers never see pupil-level attendance.
+export async function supplierInsights(ctx: QueryCtx, range: DateRange): Promise<SupplierInsights> {
+  const schools = (await ctx.db.query("schools").take(MAX_SCHOOLS)).filter((school) => school.active);
+  const skipped = await nonFullDays(ctx, range);
+  const days: InsightDay[] = [];
+  for (const school of schools) {
+    days.push(...(await schoolInsightDays(ctx, school, range, skipped)));
+  }
+  const minDays = await readNumberSetting(ctx, SettingKey.DishInsightsMinDays, DEFAULT_MIN_DISH_DAYS);
+  const dishes = dishInsights(days, minDays).sort((left, right) => (right.leftoverPct ?? -Infinity) - (left.leftoverPct ?? -Infinity));
+  return { minDays, dishes, weekdays: attendanceByWeekday(days) };
+}
+
+const nullableNumber = v.union(v.number(), v.null());
+
+export const insights = query({
+  args: { from: v.string(), to: v.string() },
+  returns: v.object({
+    minDays: v.number(),
+    dishes: v.array(
+      v.object({
+        dish: v.string(),
+        days: v.number(),
+        enoughData: v.boolean(),
+        uptakePct: nullableNumber,
+        leftoverPct: nullableNumber,
+        uptakeVsWeekday: nullableNumber,
+        leftoverVsWeekday: nullableNumber,
+      }),
+    ),
+    weekdays: v.array(
+      v.object({
+        weekday: v.string(),
+        registerDays: v.number(),
+        attendancePct: nullableNumber,
+        uptakePct: nullableNumber,
+        absent: v.number(),
+        missedPresent: v.number(),
+        missedSupply: v.number(),
+        missedUnknown: v.number(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, SUPPLIER_ROLES);
+    return await supplierInsights(ctx, args);
+  },
+});
+
+export const recentDishes = query({
+  args: {},
+  returns: v.array(v.string()),
+  handler: async (ctx) => {
+    const actor = await requireRole(ctx, SUPPLIER_ROLES);
+    const recent = await ctx.db
+      .query("deliveries")
+      .withIndex("by_declaredBy_and_serviceDate", (q) => q.eq("declaredBy", actor._id))
+      .order("desc")
+      .take(RECENT_DELIVERIES_SCANNED);
+    return [...new Set(recent.flatMap((delivery) => (delivery.dish ? [delivery.dish] : [])))].slice(0, MAX_RECENT_DISHES);
   },
 });

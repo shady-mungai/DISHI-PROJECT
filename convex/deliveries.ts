@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { dayAttendanceSummary } from "./attendance";
 import { flagIntegrity } from "./county";
 import { countExpectations, isSchoolDay } from "./expectations";
 import { requireRole, requireSchoolScope } from "./lib/authz";
@@ -384,6 +385,7 @@ async function finaliseReconciliation(ctx: MutationCtx, args: ReconcileArgs): Pr
   const confirmed = deliveries.filter((row) => row.status === "confirmed").reduce((sum, row) => sum + (row.portionsReceived ?? 0), 0);
   const received = deliveries.reduce((sum, row) => sum + (row.portionsReceived ?? 0), 0);
   const totals = { dispatched, confirmed, received, consumed: args.consumedSoFar, ...computeVariance(confirmed, args.consumedSoFar) };
+  const attendance = await dayAttendanceSummary(ctx, args);
   const now = Date.now();
   const existing = await ctx.db
     .query("reconciliations")
@@ -391,10 +393,10 @@ async function finaliseReconciliation(ctx: MutationCtx, args: ReconcileArgs): Pr
     .unique();
   let reconciliationId: Id<"reconciliations">;
   if (existing) {
-    await ctx.db.patch(existing._id, { ...totals, computedAt: now });
+    await ctx.db.patch(existing._id, { ...totals, attendance, computedAt: now });
     reconciliationId = existing._id;
   } else {
-    reconciliationId = await ctx.db.insert("reconciliations", { schoolId: args.schoolId, serviceDate: args.serviceDate, ...totals, computedAt: now });
+    reconciliationId = await ctx.db.insert("reconciliations", { schoolId: args.schoolId, serviceDate: args.serviceDate, ...totals, attendance, computedAt: now });
   }
   await recordEvent(ctx, {
     eventId: `reconciliation.daily_computed:${reconciliationId}:${now}`,

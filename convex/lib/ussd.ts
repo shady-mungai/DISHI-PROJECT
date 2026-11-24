@@ -38,6 +38,7 @@ export type UssdRequest = { sessionId: string; msisdn: string; inputs: string[] 
 export const NOTIFICATION_TYPES: { eventType: string; label: Localised }[] = [
   { eventType: "meal.tapped", label: { en: "Meal eaten", sw: "Amekula" } },
   { eventType: "meal.missed", label: { en: "Meal missed", sw: "Amekosa" } },
+  { eventType: "meal.absent", label: { en: "Absent", sw: "Hayupo" } },
   { eventType: "wallet.topped_up", label: { en: "Top-up", sw: "Malipo" } },
   { eventType: "wallet.low_balance", label: { en: "Low balance", sw: "Salio chini" } },
   { eventType: "wallet.depleted", label: { en: "Depleted", sw: "Salio limeisha" } },
@@ -63,11 +64,13 @@ const COPY = {
   ate: { en: "ate today.", sw: "amekula leo." },
   notYet: { en: "has not eaten yet today.", sw: "bado hajakula leo." },
   missed: { en: "missed today's meal.", sw: "amekosa chakula cha leo." },
+  absent: { en: "was marked absent today.", sw: "ameandikwa hayupo leo." },
   noService: { en: "No meal service today.", sw: "Hakuna chakula leo." },
   balance: { en: "balance: KES", sw: "salio: KES" },
   noHistory: { en: "no meal days recorded yet.", sw: "hakuna siku za chakula bado." },
   historyAte: { en: "ate", sw: "alikula" },
   historyMissed: { en: "missed", sw: "alikosa" },
+  historyAbsent: { en: "absent", sw: "hakuwepo" },
   historyPending: { en: "pending", sw: "inasubiri" },
   notifications: { en: "Alerts (pick to switch)", sw: "Arifa (chagua kubadilisha)" },
   back: { en: "0. Back", sw: "0. Rudi" },
@@ -149,7 +152,7 @@ function displayDate(serviceDate: string): string {
 }
 
 function todayLine(language: Language, child: UssdChild): string {
-  const status: Record<ExpectationStatus, Localised> = { fulfilled: COPY.ate, pending: COPY.notYet, missed: COPY.missed };
+  const status: Record<ExpectationStatus, Localised> = { fulfilled: COPY.ate, pending: COPY.notYet, missed: COPY.missed, absent: COPY.absent };
   return child.today === null ? COPY.noService[language] : `${child.name} ${status[child.today][language]}`;
 }
 
@@ -160,6 +163,7 @@ function historyLine(language: Language, child: UssdChild): string {
   const status: Record<ExpectationStatus, Localised> = {
     fulfilled: COPY.historyAte,
     missed: COPY.historyMissed,
+    absent: COPY.historyAbsent,
     pending: COPY.historyPending,
   };
   const lines = child.history
