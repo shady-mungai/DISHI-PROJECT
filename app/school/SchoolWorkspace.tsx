@@ -26,7 +26,7 @@ import {
   DeliveryInbox,
   ForecastPanel,
 } from "@/app/deliveries/DeliveryOperations";
-import { userMessage } from "@/app/lib/errors";
+import { showError } from "@/app/lib/errors";
 
 const FIELD_CLASS =
   "min-h-11 w-24 rounded-control border-2 border-green px-2 py-1";
@@ -101,7 +101,8 @@ function ServiceDayPanel({
     try {
       setMessage(await run());
     } catch (caught) {
-      setMessage(userMessage(caught, "That action did not finish. Please try again."));
+      setMessage(null);
+      showError(caught, "That action did not finish. Please try again.");
     } finally {
       setBusy(false);
     }

@@ -19,7 +19,7 @@ import {
   SECTION_TITLE_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
-import { userMessage } from "@/app/lib/errors";
+import { showError } from "@/app/lib/errors";
 
 type Delivery = FunctionReturnType<typeof api.deliveryDashboard.active>[number];
 const DeliveryNotice = createContext<((message: string) => void) | null>(null);
@@ -37,33 +37,26 @@ function useTask() {
   const lock = useRef(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
   async function run(fn: () => Promise<string>) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
-    setError("");
     setMessage("");
     try {
       setMessage(await fn());
     } catch (e) {
-      setError(userMessage(e, "Request failed. Try again."));
+      showError(e, "That did not go through. Please try again.");
     } finally {
       lock.current = false;
       setBusy(false);
     }
   }
-  return { busy, message, error, run };
+  return { busy, message, run };
 }
 function Feedback({ task }: { task: ReturnType<typeof useTask> }) {
   return (
     <>
       {task.busy && <p role="status">Saving…</p>}
-      {task.error && (
-        <p role="alert" className="text-error break-words">
-          {task.error}
-        </p>
-      )}
       {task.message && <p role="status">{task.message}</p>}
     </>
   );

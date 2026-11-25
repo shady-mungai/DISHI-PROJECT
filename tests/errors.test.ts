@@ -1,6 +1,6 @@
 import { ConvexError } from "convex/values";
-import { describe, expect, test } from "vitest";
-import { userMessage } from "../app/lib/errors";
+import { describe, expect, test, vi } from "vitest";
+import { ERROR_TOAST_EVENT, showError, userMessage } from "../app/lib/errors";
 
 const FALLBACK = "Could not save.";
 
@@ -25,6 +25,16 @@ describe("userMessage", () => {
 
   test("explains a lost connection", () => {
     expect(userMessage(new TypeError("Failed to fetch"), FALLBACK)).toContain("internet connection");
+  });
+
+  test("showError hands the friendly sentence to the toaster", () => {
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    const shown: string[] = [];
+    target.addEventListener(ERROR_TOAST_EVENT, (event) => shown.push((event as CustomEvent<string>).detail));
+    showError(new ConvexError("FORBIDDEN"), FALLBACK);
+    vi.unstubAllGlobals();
+    expect(shown).toEqual(["Your account doesn't have permission to do this."]);
   });
 
   test("falls back when nothing readable was thrown", () => {

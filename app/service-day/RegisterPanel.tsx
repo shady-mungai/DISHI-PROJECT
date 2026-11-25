@@ -12,7 +12,7 @@ import {
   ROW_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/app/components/ui";
-import { userMessage } from "@/app/lib/errors";
+import { showError } from "@/app/lib/errors";
 
 const ALL_CLASSES = "";
 
@@ -40,7 +40,8 @@ function useRegister(schoolId: Id<"schools">) {
       setEdits(null);
       setMessage(`Register saved for ${result.serviceDate}: ${result.absent} absent, everyone else present.`);
     } catch (caught) {
-      setMessage(userMessage(caught, "Register not saved. Try again."));
+      setMessage(null);
+      showError(caught, "Register not saved. Try again.");
     } finally {
       setBusy(false);
     }

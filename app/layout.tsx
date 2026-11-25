@@ -5,6 +5,7 @@ import { ConvexClientProvider } from "./ConvexClientProvider";
 import { getToken } from "./lib/auth-server";
 import "./globals.css";
 import { Suspense } from "react";
+import { ErrorToaster } from "./components/ErrorToaster";
 import { Workspace } from "./components/Workspace";
 
 const serif = DM_Serif_Display({
@@ -35,6 +36,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <Suspense fallback={<p role="status">Loading workspace…</p>}>
             <Workspace>{children}</Workspace>
           </Suspense>
+          <ErrorToaster />
         </ConvexClientProvider>
       </body>
     </html>

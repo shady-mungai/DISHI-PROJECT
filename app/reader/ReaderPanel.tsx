@@ -18,14 +18,13 @@ import {
   SECONDARY_BUTTON_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
-import { userMessage } from "@/app/lib/errors";
+import { showError } from "@/app/lib/errors";
 
 type Mode = "serve" | "assign";
 
 export default function ReaderPanel({ schoolId }: { schoolId: Id<"schools"> }) {
   const [device, setDevice] = useReaderDevice();
   const provision = useMutation(api.readers.provision);
-  const [provisionError, setProvisionError] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
 
   async function register() {
@@ -33,9 +32,7 @@ export default function ReaderPanel({ schoolId }: { schoolId: Id<"schools"> }) {
     try {
       setDevice(await provision({ schoolId }));
     } catch (caught) {
-      setProvisionError(
-        userMessage(caught, "Could not register this phone"),
-      );
+      showError(caught, "Could not register this phone. Please try again.");
     } finally {
       setRegistering(false);
     }
@@ -51,9 +48,6 @@ export default function ReaderPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         <button type="button" onClick={register} className={BUTTON_CLASS}>
           {registering ? "Registering…" : "Register this phone"}
         </button>
-        {provisionError && (
-          <p className="text-sm text-error">{provisionError}</p>
-        )}
       </div>
     );
   }
@@ -87,7 +81,7 @@ function Scanner({
     [mode, enqueue],
   );
 
-  const { supported, scanning, scanError, startScanning } =
+  const { supported, scanning, startScanning } =
     useNfcScanner(handleTag);
   const nameByTag = new Map(
     (students ?? []).filter((s) => s.tagUid).map((s) => [s.tagUid, s.fullName]),
@@ -135,7 +129,6 @@ function Scanner({
           Hold a tag to the back of the phone
         </p>
       )}
-      {scanError && <p className="text-sm text-error">{scanError}</p>}
       {flushError && (
         <p className="border-2 border-orange p-3 text-ink">
           Offline — taps are queued ({flushError})
@@ -240,9 +233,8 @@ function AssignForm({
         `Tag assigned to ${students.find((s) => s._id === studentId)?.fullName}`,
       );
     } catch (caught) {
-      setMessage(
-        userMessage(caught, "Could not assign tag"),
-      );
+      setMessage(null);
+      showError(caught, "Could not assign the tag. Please try again.");
     }
   }
 

@@ -5,7 +5,6 @@ import { addDays, toServiceDate } from "@/convex/lib/dates";
 import {
   BUTTON_CLASS,
   DATE_CLASS,
-  ERROR_CLASS,
   INPUT_CLASS,
   MUTED_CLASS,
   PANEL_CLASS,
@@ -17,7 +16,7 @@ import {
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { userMessage } from "@/app/lib/errors";
+import { showError } from "@/app/lib/errors";
 
 const DEFAULT_PRIORITY = 100;
 const DEFAULT_PREDICATE = JSON.stringify({ op: "always" });
@@ -69,7 +68,6 @@ export function RulesPanel() {
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DryRunReport | null>(null);
 
   function update<Key extends keyof Draft>(key: Key, value: Draft[Key]) {
@@ -79,11 +77,10 @@ export function RulesPanel() {
   async function run(work: () => Promise<string>) {
     setBusy(true);
     setMessage(null);
-    setError(null);
     try {
       setMessage(await work());
     } catch (caught) {
-      setError(userMessage(caught, "That did not go through. Please try again."));
+      showError(caught, "That did not go through. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -271,11 +268,6 @@ export function RulesPanel() {
             Clear
           </button>
         </div>
-        {error && (
-          <p role="alert" className={ERROR_CLASS}>
-            {error}
-          </p>
-        )}
         {message && (
           <p role="status" className={MUTED_CLASS}>
             {message}

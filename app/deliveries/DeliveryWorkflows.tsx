@@ -24,7 +24,7 @@ import {
   SECTION_TITLE_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
-import { userMessage } from "@/app/lib/errors";
+import { showError } from "@/app/lib/errors";
 
 function useTrigger() {
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,8 @@ function useTrigger() {
     try {
       setMessage(await run());
     } catch (caught) {
-      setMessage(userMessage(caught, "That did not go through. Please try again."));
+      setMessage(null);
+      showError(caught, "That did not go through. Please try again.");
     } finally {
       setBusy(false);
     }

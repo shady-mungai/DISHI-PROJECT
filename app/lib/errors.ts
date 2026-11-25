@@ -50,3 +50,13 @@ export function userMessage(caught: unknown, fallback: string): string {
   }
   return caught.message || fallback;
 }
+
+export const ERROR_TOAST_EVENT = "mlo:error-toast";
+
+export function toastError(message: string): void {
+  window.dispatchEvent(new CustomEvent<string>(ERROR_TOAST_EVENT, { detail: message }));
+}
+
+export function showError(caught: unknown, fallback: string): void {
+  toastError(userMessage(caught, fallback));
+}

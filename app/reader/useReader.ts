@@ -4,7 +4,7 @@ import { hmacSha256Hex } from "@/convex/lib/hmac";
 import { normaliseTagUid } from "@/convex/lib/tagUid";
 import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { userMessage } from "@/app/lib/errors";
+import { showError, userMessage } from "@/app/lib/errors";
 
 const DEVICE_STORAGE_KEY = "dishi.reader.device";
 const QUEUE_STORAGE_KEY = "dishi.reader.queue";
@@ -131,7 +131,6 @@ export function useTapQueue(device: ReaderDevice | null) {
 export function useNfcScanner(onTag: (tagUid: string) => void) {
   const [supported] = useState(() => "NDEFReader" in window);
   const [scanning, setScanning] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
   const onTagRef = useRef(onTag);
 
   useEffect(() => {
@@ -148,11 +147,10 @@ export function useNfcScanner(onTag: (tagUid: string) => void) {
       reader.addEventListener("reading", (event) => onTagRef.current(event.serialNumber));
       await reader.scan();
       setScanning(true);
-      setScanError(null);
     } catch (caught) {
-      setScanError(userMessage(caught, "NFC scan failed"));
+      showError(caught, "NFC scanning could not start. Check that NFC is on and allowed for this site.");
     }
   }, []);
 
-  return { supported, scanning, scanError, startScanning };
+  return { supported, scanning, startScanning };
 }
