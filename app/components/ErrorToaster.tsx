@@ -3,15 +3,13 @@
 import { useEffect, useState } from "react";
 import { ERROR_TOAST_EVENT } from "@/app/lib/errors";
 
-const VISIBLE_MS = 6000;
-const OVERLAY_CLASS = "pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4";
-const TOAST_CLASS =
-  "pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-control border-2 border-error bg-error px-5 py-4 text-on-primary shadow-lg";
-const DISMISS_CLASS = "min-h-11 shrink-0 rounded-control px-2 font-semibold underline focus-visible:outline-2 focus-visible:outline-on-primary";
+const VISIBLE_MS = 1500;
+const OVERLAY_CLASS = "pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4";
+const TOAST_CLASS = "max-w-md rounded-control bg-error px-4 py-2 text-sm font-medium text-on-primary shadow-lg";
 
 type Toast = { id: number; message: string };
 
-function useErrorToast(): [Toast | null, () => void] {
+function useErrorToast(): Toast | null {
   const [toast, setToast] = useState<Toast | null>(null);
 
   useEffect(() => {
@@ -28,20 +26,17 @@ function useErrorToast(): [Toast | null, () => void] {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  return [toast, () => setToast(null)];
+  return toast;
 }
 
 export function ErrorToaster() {
-  const [toast, dismiss] = useErrorToast();
+  const toast = useErrorToast();
   if (!toast) return null;
   return (
     <div className={OVERLAY_CLASS}>
-      <div key={toast.id} role="alert" className={TOAST_CLASS}>
-        <p className="flex-1 font-medium">{toast.message}</p>
-        <button type="button" onClick={dismiss} className={DISMISS_CLASS}>
-          Dismiss
-        </button>
-      </div>
+      <p key={toast.id} role="alert" className={TOAST_CLASS}>
+        {toast.message}
+      </p>
     </div>
   );
 }
