@@ -12,6 +12,7 @@ import {
   SECONDARY_BUTTON_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/app/components/ui";
+import { userMessage } from "@/app/lib/errors";
 
 const DEFAULT_RELATIONSHIP = "guardian";
 
@@ -35,7 +36,7 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
       setMessage(await action());
     } catch (caught) {
       setMessage(
-        caught instanceof Error ? caught.message : "Roster change failed",
+        userMessage(caught, "The roster was not changed. Please try again."),
       );
     } finally {
       setBusy(false);

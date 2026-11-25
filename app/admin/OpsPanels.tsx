@@ -12,6 +12,7 @@ import {
 } from "@/app/components/ui";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
+import { userMessage } from "@/app/lib/errors";
 
 type Range = { from: string; to: string };
 
@@ -101,7 +102,7 @@ export function SettingsPanel() {
       setSaved(`${key} saved.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not save setting",
+        userMessage(caught, "Could not save setting"),
       );
     }
   }
@@ -163,7 +164,7 @@ export function RevokeButton({
       await revoke({ deviceRef });
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not revoke reader.",
+        userMessage(caught, "Could not revoke reader."),
       );
     } finally {
       setBusy(false);

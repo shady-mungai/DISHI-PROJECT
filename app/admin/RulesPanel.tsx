@@ -17,6 +17,7 @@ import {
 import { useAction, useMutation, useQuery } from "convex/react";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { userMessage } from "@/app/lib/errors";
 
 const DEFAULT_PRIORITY = 100;
 const DEFAULT_PREDICATE = JSON.stringify({ op: "always" });
@@ -82,7 +83,7 @@ export function RulesPanel() {
     try {
       setMessage(await work());
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Request failed");
+      setError(userMessage(caught, "That did not go through. Please try again."));
     } finally {
       setBusy(false);
     }

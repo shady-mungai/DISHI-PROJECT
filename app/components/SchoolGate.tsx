@@ -7,6 +7,7 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { BUTTON_CLASS, INPUT_CLASS, TITLE_CLASS } from "@/app/components/ui";
+import { userMessage } from "@/app/lib/errors";
 
 export function Centered({ children }: { children: ReactNode }) {
   return (
@@ -74,7 +75,7 @@ function SignInForm() {
       }
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not reach the server",
+        userMessage(caught, "Could not reach the server"),
       );
     } finally {
       setPending(false);
@@ -166,9 +167,7 @@ function ProfileGate({
       bootstrapProfile({ displayName: "School staff" }).catch(
         (caught: unknown) => {
           setBootstrapError(
-            caught instanceof Error
-              ? caught.message
-              : "Could not set up your account",
+            userMessage(caught, "Could not set up your account"),
           );
         },
       );

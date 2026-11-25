@@ -9,6 +9,7 @@ import {
   INPUT_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/app/components/ui";
+import { userMessage } from "@/app/lib/errors";
 
 const OVER_TOLERANCE_CLASS = "font-medium text-ink";
 
@@ -55,7 +56,7 @@ export function OverridePanel({
       );
       setStudentId("");
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Override failed");
+      setMessage(userMessage(caught, "The meal was not recorded. Please try again."));
     } finally {
       setBusy(false);
     }

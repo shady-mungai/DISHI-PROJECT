@@ -18,6 +18,7 @@ import {
   SECONDARY_BUTTON_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
+import { userMessage } from "@/app/lib/errors";
 
 type Mode = "serve" | "assign";
 
@@ -33,9 +34,7 @@ export default function ReaderPanel({ schoolId }: { schoolId: Id<"schools"> }) {
       setDevice(await provision({ schoolId }));
     } catch (caught) {
       setProvisionError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not register this phone",
+        userMessage(caught, "Could not register this phone"),
       );
     } finally {
       setRegistering(false);
@@ -242,7 +241,7 @@ function AssignForm({
       );
     } catch (caught) {
       setMessage(
-        caught instanceof Error ? caught.message : "Could not assign tag",
+        userMessage(caught, "Could not assign tag"),
       );
     }
   }

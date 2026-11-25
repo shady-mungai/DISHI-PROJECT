@@ -4,6 +4,7 @@ import { hmacSha256Hex } from "@/convex/lib/hmac";
 import { normaliseTagUid } from "@/convex/lib/tagUid";
 import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { userMessage } from "@/app/lib/errors";
 
 const DEVICE_STORAGE_KEY = "dishi.reader.device";
 const QUEUE_STORAGE_KEY = "dishi.reader.queue";
@@ -99,7 +100,7 @@ export function useTapQueue(device: ReaderDevice | null) {
       const settled = new Set(results.map((result) => result.eventId));
       persist(queueRef.current.filter((tap) => !settled.has(tap.eventId)));
     } catch (caught) {
-      setFlushError(caught instanceof Error ? caught.message : "offline");
+      setFlushError(userMessage(caught, "no connection"));
     } finally {
       flushing.current = false;
     }
@@ -149,7 +150,7 @@ export function useNfcScanner(onTag: (tagUid: string) => void) {
       setScanning(true);
       setScanError(null);
     } catch (caught) {
-      setScanError(caught instanceof Error ? caught.message : "NFC scan failed");
+      setScanError(userMessage(caught, "NFC scan failed"));
     }
   }, []);
 

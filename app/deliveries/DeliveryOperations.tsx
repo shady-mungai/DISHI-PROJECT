@@ -19,6 +19,7 @@ import {
   SECTION_TITLE_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
+import { userMessage } from "@/app/lib/errors";
 
 type Delivery = FunctionReturnType<typeof api.deliveryDashboard.active>[number];
 const DeliveryNotice = createContext<((message: string) => void) | null>(null);
@@ -46,7 +47,7 @@ function useTask() {
     try {
       setMessage(await fn());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Request failed. Try again.");
+      setError(userMessage(e, "Request failed. Try again."));
     } finally {
       lock.current = false;
       setBusy(false);

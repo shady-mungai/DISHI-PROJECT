@@ -8,6 +8,7 @@ import { useAction, useMutation } from "convex/react";
 import type { ChangeEvent } from "react";
 import { useState } from "react";
 import { PAGE_CLASS, TITLE_CLASS } from "@/app/components/ui";
+import { userMessage } from "@/app/lib/errors";
 
 type RosterRowDraft = {
   fullName: string;
@@ -80,7 +81,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
       setStep("confirm");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not read that PDF",
+        userMessage(caught, "Could not read that PDF"),
       );
     } finally {
       setBusy(false);
@@ -135,7 +136,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
       setStep("done");
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not save the roster",
+        userMessage(caught, "Could not save the roster"),
       );
     } finally {
       setBusy(false);
