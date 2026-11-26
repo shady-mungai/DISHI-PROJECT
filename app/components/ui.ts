@@ -8,6 +8,9 @@ export const NARROW_PAGE_CLASS =
 export const TITLE_CLASS =
   "dashboard-title text-3xl font-semibold tracking-tight text-primary md:text-4xl";
 export const SECTION_TITLE_CLASS = "text-lg font-semibold text-primary";
+// Tap-to-expand section header; pair with <details>, heading stays inline beside the marker.
+export const DISCLOSURE_SUMMARY_CLASS =
+  "min-h-11 cursor-pointer py-2 [&>h2]:inline";
 export const PANEL_CLASS =
   "dashboard-panel flex flex-col gap-3 rounded-panel border border-primary/15 bg-surface p-5 md:p-6";
 export const STAT_CLASS =

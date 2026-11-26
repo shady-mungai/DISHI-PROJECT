@@ -7,6 +7,7 @@ import { useState } from "react";
 import {
   BUTTON_CLASS,
   INPUT_CLASS,
+  DISCLOSURE_SUMMARY_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/app/components/ui";
 
@@ -64,70 +65,74 @@ export function OverridePanel({
   const overTolerance = rate !== undefined && rate.ratePct > rate.tolerancePct;
 
   return (
-    <section className="flex flex-col gap-4 rounded-panel border border-primary/20 bg-surface p-5 md:p-6">
-      <h2 className={SECTION_TITLE_CLASS}>Record a meal · staff override</h2>
-      <form
-        className="grid gap-4 sm:grid-cols-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <label className="flex min-w-0 flex-col gap-2">
-          Child
-          <select
-            name="studentId"
-            required
-            disabled={busy}
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value as Id<"students">)}
-            className={`${INPUT_CLASS} w-full`}
-          >
-            <option value="">Choose child</option>
-            {students?.map((student) => (
-              <option key={student._id} value={student._id}>
-                {student.fullName} ({student.className})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex min-w-0 flex-col gap-2">
-          Reason
-          <select
-            name="reasonCode"
-            disabled={busy}
-            value={reasonCode}
-            onChange={(e) => setReasonCode(e.target.value as ReasonCode)}
-            className={`${INPUT_CLASS} w-full`}
-          >
-            {REASON_CODES.map((reason) => (
-              <option key={reason.value} value={reason.value}>
-                {reason.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="submit"
-          disabled={busy || studentId === ""}
-          className={BUTTON_CLASS}
+    <details className="rounded-panel border border-primary/20 bg-surface p-5 md:p-6">
+      <summary className={DISCLOSURE_SUMMARY_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Record a meal · staff override</h2>
+      </summary>
+      <div className="mt-4 flex flex-col gap-4">
+        <form
+          className="grid gap-4 sm:grid-cols-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
         >
-          {busy ? "Recording meal…" : "Record meal"}
-        </button>
-      </form>
-      {message && (
-        <p role="status" className="text-sm text-ink/80">
-          {message}
-        </p>
-      )}
-      {rate && (
-        <p
-          className={`text-sm ${overTolerance ? OVER_TOLERANCE_CLASS : "text-ink/80"}`}
-        >
-          Override rate {rate.ratePct}% ({rate.overrides} of {rate.served}{" "}
-          meals, {rate.from} → {rate.to}); tolerance {rate.tolerancePct}%
-        </p>
-      )}
-    </section>
+          <label className="flex min-w-0 flex-col gap-2">
+            Child
+            <select
+              name="studentId"
+              required
+              disabled={busy}
+              value={studentId}
+              onChange={(e) => setStudentId(e.target.value as Id<"students">)}
+              className={`${INPUT_CLASS} w-full`}
+            >
+              <option value="">Choose child</option>
+              {students?.map((student) => (
+                <option key={student._id} value={student._id}>
+                  {student.fullName} ({student.className})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-2">
+            Reason
+            <select
+              name="reasonCode"
+              disabled={busy}
+              value={reasonCode}
+              onChange={(e) => setReasonCode(e.target.value as ReasonCode)}
+              className={`${INPUT_CLASS} w-full`}
+            >
+              {REASON_CODES.map((reason) => (
+                <option key={reason.value} value={reason.value}>
+                  {reason.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={busy || studentId === ""}
+            className={BUTTON_CLASS}
+          >
+            {busy ? "Recording meal…" : "Record meal"}
+          </button>
+        </form>
+        {message && (
+          <p role="status" className="text-sm text-ink/80">
+            {message}
+          </p>
+        )}
+        {rate && (
+          <p
+            className={`text-sm ${overTolerance ? OVER_TOLERANCE_CLASS : "text-ink/80"}`}
+          >
+            Override rate {rate.ratePct}% ({rate.overrides} of {rate.served}{" "}
+            meals, {rate.from} → {rate.to}); tolerance {rate.tolerancePct}%
+          </p>
+        )}
+      </div>
+    </details>
   );
 }

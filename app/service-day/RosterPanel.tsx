@@ -10,6 +10,7 @@ import {
   BUTTON_CLASS,
   INPUT_CLASS,
   SECONDARY_BUTTON_CLASS,
+  DISCLOSURE_SUMMARY_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/app/components/ui";
 
@@ -95,86 +96,92 @@ export function RosterPanel({ schoolId }: { schoolId: Id<"schools"> }) {
         ))}
       </ul>
       {students?.length === 0 && <p>No active pupils.</p>}
-      <h2 className={SECTION_TITLE_CLASS}>Roster corrections</h2>
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <label className="flex flex-col gap-1">
-          <span>Child who left</span>
-          <select
-            value={leavingId}
-            onChange={(e) => setLeavingId(e.target.value as Id<"students">)}
-            className={INPUT_CLASS}
+      <details>
+        <summary className={DISCLOSURE_SUMMARY_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Roster corrections</h2>
+        </summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <label className="flex flex-col gap-1">
+              <span>Child who left</span>
+              <select
+                value={leavingId}
+                onChange={(e) => setLeavingId(e.target.value as Id<"students">)}
+                className={INPUT_CLASS}
+              >
+                <option value="">Child who left</option>
+                {students?.map((student) => (
+                  <option key={student._id} value={student._id}>
+                    {student.fullName} ({student.className})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span>Reason</span>
+              <input
+                placeholder="Reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || leavingId === "" || !reason}
+              className={SECONDARY_BUTTON_CLASS}
+              onClick={() => void markLeft()}
+            >
+              Mark as left
+            </button>
+          </div>
+          <form
+            onSubmit={addStudent}
+            className="flex flex-wrap items-center gap-3 text-sm"
           >
-            <option value="">Child who left</option>
-            {students?.map((student) => (
-              <option key={student._id} value={student._id}>
-                {student.fullName} ({student.className})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span>Reason</span>
-          <input
-            placeholder="Reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={busy || leavingId === "" || !reason}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() => void markLeft()}
-        >
-          Mark as left
-        </button>
-      </div>
-      <form
-        onSubmit={addStudent}
-        className="flex flex-wrap items-center gap-3 text-sm"
-      >
-        <label className="flex flex-col gap-1">
-          <span>New child&apos;s name</span>
-          <input
-            required
-            placeholder="New child's name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span>Class</span>
-          <input
-            required
-            placeholder="Class"
-            value={className}
-            onChange={(e) => setClassName(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span>Guardian phone</span>
-          <input
-            required
-            placeholder="Guardian phone"
-            value={guardianMsisdn}
-            onChange={(e) => setGuardianMsisdn(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <button type="submit" disabled={busy} className={BUTTON_CLASS}>
-          Add child
-        </button>
-      </form>
-      <p className="text-sm text-ink/80">
-        Tag lost or reissued?{" "}
-        <Link href="/reader" className="underline">
-          Assign a tag on the reader page
-        </Link>
-        .
-      </p>
+            <label className="flex flex-col gap-1">
+              <span>New child&apos;s name</span>
+              <input
+                required
+                placeholder="New child's name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span>Class</span>
+              <input
+                required
+                placeholder="Class"
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span>Guardian phone</span>
+              <input
+                required
+                placeholder="Guardian phone"
+                value={guardianMsisdn}
+                onChange={(e) => setGuardianMsisdn(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </label>
+            <button type="submit" disabled={busy} className={BUTTON_CLASS}>
+              Add child
+            </button>
+          </form>
+          <p className="text-sm text-ink/80">
+            Tag lost or reissued?{" "}
+            <Link href="/reader" className="underline">
+              Assign a tag on the reader page
+            </Link>
+            .
+          </p>
+        </div>
+      </details>
       {message && (
         <p role="status" className="text-sm text-ink/80">
           {message}
