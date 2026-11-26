@@ -113,6 +113,11 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     description: "Reconciliation variance considered actionable",
   },
   {
+    key: SettingKey.ServiceRequiresSupply,
+    value: true,
+    description: "Block meal service until the school records a received delivery for the day",
+  },
+  {
     key: SettingKey.TasteLikedMaxSkipPct,
     value: 10,
     description: "Skip rate below which a dish counts as liked",
