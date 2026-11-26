@@ -8,7 +8,7 @@ import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { useQuery } from "convex/react";
 import { MUTED_CLASS, PANEL_CLASS, SECTION_TITLE_CLASS } from "@/app/components/ui";
 
-const PERIOD_DAYS = 42;
+const PERIOD_DAYS = 92;
 const NOT_SERVED = "—";
 
 const VERDICT_CLASS: Record<TasteVerdict, string> = {
