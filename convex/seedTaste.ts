@@ -5,6 +5,7 @@ import { addDays, isWeekend, serviceStartFor } from "./lib/dates";
 import { mulberry32 } from "./lib/simulation";
 import { computeVariance } from "./lib/supply";
 import { commitRosterRows, type RosterRow } from "./enrolment";
+import { AuditType } from "./admin";
 import { PILOT_SCHOOL_CODE, ROSTER_TABLES } from "./seed";
 
 
@@ -64,10 +65,14 @@ const SEED_CONFIRM_HASH = "seeded";
 const MAX_ROWS_CLEARED = 4_000;
 const MAX_USERS_SCANNED = 1_000;
 const MAX_DELIVERIES_PER_DAY = 10;
+const EVENT_SCHEMA_VERSION = 1;
+const SIMULATION_RUNNER = "seedTaste.seedTasteDemo";
 
 type Pupil = { id: Id<"students">; stream: Stream; index: number; pickiness: number };
 type SeedActors = { schoolId: Id<"schools">; supplierId: Id<"users">; schoolUserId: Id<"users"> };
 type DayOutcome = { absent: Id<"students">[]; ate: Id<"students">[]; skipped: Id<"students">[] };
+type SimulationTotals = { ate: number; skipped: number; absent: number };
+type SimulationRun = { schoolId: Id<"schools">; days: string[]; pupils: number; seed: number; totals: SimulationTotals };
 
 function schoolDaysEndingOn(endDate: string, count: number): string[] {
   const days: string[] = [];
@@ -224,12 +229,42 @@ async function enrolPupils(ctx: MutationCtx, schoolId: Id<"schools">, random: ()
     .map(({ student, index }) => ({ id: student._id, stream: student.className as Stream, index, pickiness: PICKINESS_MIN + random() * PICKINESS_SPREAD }));
 }
 
+async function recordSimulationRun(ctx: MutationCtx, run: SimulationRun): Promise<void> {
+  const now = Date.now();
+  const eventId = `${AuditType.SimulationRun}:${now}`;
+  await ctx.db.insert("events", {
+    eventId,
+    type: AuditType.SimulationRun,
+    occurredAt: now,
+    recordedAt: now,
+    schemaVersion: EVENT_SCHEMA_VERSION,
+    correlationId: eventId,
+    schoolId: run.schoolId,
+    payload: {
+      actor_name: SIMULATION_RUNNER,
+      school_code: PILOT_SCHOOL_CODE,
+      first_date: run.days[0],
+      last_date: run.days[run.days.length - 1],
+      school_days: run.days.length,
+      pupils: run.pupils,
+      guardians: GUARDIANS.length,
+      dishes: MENU.length,
+      meals_eaten: run.totals.ate,
+      present_skipped: run.totals.skipped,
+      absences: run.totals.absent,
+      random_seed: run.seed,
+    },
+  });
+}
+
 export const seedTasteDemo = internalMutation({
   args: { endDate: v.string(), schoolDays: v.optional(v.number()), seed: v.optional(v.number()) },
   returns: v.object({ pupils: v.number(), guardians: v.number(), schoolDays: v.number(), firstDate: v.string(), lastDate: v.string() }),
   handler: async (ctx, args) => {
     const actors = await seedActors(ctx);
-    const random = mulberry32(args.seed ?? DEFAULT_SEED);
+    const seed = args.seed ?? DEFAULT_SEED;
+    const random = mulberry32(seed);
+    const totals: SimulationTotals = { ate: 0, skipped: 0, absent: 0 };
     const pupils = await enrolPupils(ctx, actors.schoolId, random);
     const days = schoolDaysEndingOn(args.endDate, args.schoolDays ?? DEFAULT_SCHOOL_DAYS);
     for (const [dayIndex, serviceDate] of days.entries()) {
@@ -240,7 +275,11 @@ export const seedTasteDemo = internalMutation({
       await writeExpectations(ctx, actors.schoolId, serviceDate, outcome);
       await writeRegister(ctx, actors, serviceDate, outcome.absent);
       await writeReconciliation(ctx, actors.schoolId, serviceDate, received, outcome);
+      totals.ate += outcome.ate.length;
+      totals.skipped += outcome.skipped.length;
+      totals.absent += outcome.absent.length;
     }
+    await recordSimulationRun(ctx, { schoolId: actors.schoolId, days, pupils: pupils.length, seed, totals });
     return { pupils: pupils.length, guardians: GUARDIANS.length, schoolDays: days.length, firstDate: days[0], lastDate: days[days.length - 1] };
   },
 });

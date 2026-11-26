@@ -46,6 +46,7 @@ export const AuditType = {
   RuleToggled: "admin.rule_toggled",
   SettingChanged: "admin.setting_changed",
   DeviceRevoked: "admin.device_revoked",
+  SimulationRun: "admin.simulation_run",
 } as const;
 
 // FR-802 / NFR-405: every administrative action is an event in the
