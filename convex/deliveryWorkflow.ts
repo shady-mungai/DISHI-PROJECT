@@ -7,7 +7,7 @@ import type { MutationCtx } from "./_generated/server";
 import { requireRole } from "./lib/authz";
 import { toServiceDate } from "./lib/dates";
 import { sha256Hex } from "./lib/hmac";
-import { MAX_DISH_LENGTH, normaliseDish } from "./lib/dishInsights";
+import { normaliseDish } from "./lib/dishInsights";
 import { mintConfirmCode } from "./lib/supply";
 import {
   accessDelivery,
@@ -34,7 +34,7 @@ export const dispatchArgs = {
   vehicle: v.string(),
   docketRef: v.string(),
   requestId: v.string(),
-  dish: v.optional(v.string()),
+  dish: v.string(),
 };
 export async function dispatchDelivery(
   ctx: MutationCtx,
@@ -45,18 +45,23 @@ export async function dispatchDelivery(
     vehicle: string;
     docketRef: string;
     requestId: string;
-    dish?: string;
+    dish: string;
   },
 ) {
   checkPortions(args.portions, false);
   const vehicle = textField(args.vehicle, "Vehicle", 100);
   const docketRef = textField(args.docketRef, "Docket reference", 100);
-  const dish = normaliseDish(args.dish ?? "");
-  if (dish.length > MAX_DISH_LENGTH)
-    throw new ConvexError(`Dish must be at most ${MAX_DISH_LENGTH} characters.`);
+  // Suppliers serve what is on the menu, so every dispatch names one active dish.
+  const dish = normaliseDish(args.dish);
+  const onMenu = await ctx.db
+    .query("menuItems")
+    .withIndex("by_dish", (q) => q.eq("dish", dish))
+    .unique();
+  if (!onMenu?.active)
+    throw new ConvexError("Choose a dish from the active menu.");
   const key = requestKey(actor._id, args.requestId);
   const fingerprint = await sha256Hex(
-    JSON.stringify([args.schoolId, args.portions, vehicle, docketRef, ...(dish ? [dish] : [])]),
+    JSON.stringify([args.schoolId, args.portions, vehicle, docketRef, dish]),
   );
   const previous = await ctx.db
     .query("deliveries")
@@ -94,7 +99,7 @@ export async function dispatchDelivery(
     portions: args.portions,
     vehicle,
     docketRef,
-    ...(dish && { dish }),
+    dish,
     declaredBy: supplierId,
     dispatchedAt: now,
     expectedConfirmBy: now + ARRIVAL_MS,

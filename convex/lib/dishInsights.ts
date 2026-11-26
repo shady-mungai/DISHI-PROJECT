@@ -138,3 +138,22 @@ export function attendanceByWeekday(days: ReadonlyArray<InsightDay>): WeekdayAtt
     };
   }).filter((row) => row.registerDays > 0 || row.missedUnknown + row.missedSupply > 0);
 }
+
+export type RotationEntry = { dish: string; lastServed: string | null; timesServed: number };
+
+// Rotation spreads every dish across days so the engine can compare them:
+// never-served dishes first, then the longest since last served, then the
+// least sampled.
+export function rotationOrder(menu: ReadonlyArray<string>, served: ReadonlyArray<{ dish: string; serviceDate: string }>): RotationEntry[] {
+  const entries = new Map(menu.map((dish) => [dish, { dish, lastServed: null as string | null, timesServed: 0 }]));
+  for (const { dish, serviceDate } of served) {
+    const entry = entries.get(dish);
+    if (!entry) continue;
+    entry.timesServed += 1;
+    if (entry.lastServed === null || serviceDate > entry.lastServed) entry.lastServed = serviceDate;
+  }
+  return [...entries.values()].sort(
+    (left, right) =>
+      (left.lastServed ?? "").localeCompare(right.lastServed ?? "") || left.timesServed - right.timesServed || left.dish.localeCompare(right.dish),
+  );
+}

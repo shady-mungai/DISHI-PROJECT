@@ -15,6 +15,7 @@ type IngestTapInput = { eventId: string; tagUid: string; occurredAt: number; cor
 
 async function seedSchoolWithTaggedStudent(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
+    await ctx.db.insert("settings", { key: "serviceRequiresSupply", value: false, description: "supply gate is covered in supplyGate.test.ts" });
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Test School", active: true });
     const studentId = await ctx.db.insert("students", {
       schoolId,

@@ -38,6 +38,8 @@ export function InsightsPanel({ from, to }: { from: string; to: string }) {
               <th scope="col">vs same weekday</th>
               <th scope="col">Left over</th>
               <th scope="col">vs same weekday</th>
+              <th scope="col">Skipped by present pupils</th>
+              <th scope="col">Children&rsquo;s verdict</th>
             </tr>
           </thead>
           <tbody>
@@ -53,6 +55,10 @@ export function InsightsPanel({ from, to }: { from: string; to: string }) {
                 <td data-label="Left over">{percent(row.leftoverPct)}</td>
                 <td data-label="Left over vs same weekday" className={row.enoughData && (row.leftoverVsWeekday ?? 0) > 0 ? FLAGGED_CELL_CLASS : ""}>
                   {points(row.leftoverVsWeekday)}
+                </td>
+                <td data-label="Skipped by present pupils">{percent(row.skipPct)}</td>
+                <td data-label="Children’s verdict" className={row.verdict === "disliked" ? FLAGGED_CELL_CLASS : ""}>
+                  {row.verdict ?? NOT_AVAILABLE}
                 </td>
               </tr>
             ))}
@@ -102,7 +108,10 @@ export function InsightsPanel({ from, to }: { from: string; to: string }) {
         collected; plate waste is not measured. “vs same weekday” compares a
         dish with that school’s other days on the same weekday, so a sports
         Friday is compared with other Fridays. Only full school days with a
-        single dish count.
+        single dish count. Skipped is the share of present pupils who did not
+        eat that dish, across all schools; the verdict is liked, neutral or
+        disliked from the taste thresholds. Rotate dishes on the Menu page so
+        each one is seen on several weekdays.
       </p>
     </>
   );

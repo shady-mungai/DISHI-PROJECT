@@ -25,6 +25,7 @@ async function seedWorld(t: Harness): Promise<{ schoolId: Id<"schools">; student
   const ids = await t.run(async (ctx) => {
     await seedRules(ctx);
     await ctx.db.insert("academicCalendar", { serviceDate: SCHOOL_DAY, isSchoolDay: true, dayType: "full" });
+    await ctx.db.insert("settings", { key: "serviceRequiresSupply", value: false, description: "supply gate is covered in supplyGate.test.ts" });
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Pilot Primary", active: true });
     const studentId = await ctx.db.insert("students", {
       schoolId,

@@ -8,7 +8,7 @@ import { requireSchoolScope } from "./lib/authz";
 import { addDays, toServiceDate } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { overrideReason } from "./schema";
-import { readNumberSetting, SettingKey } from "./settings";
+import { readNumberSetting, readSetting, SettingKey } from "./settings";
 import { debitForMeal } from "./wallets";
 
 const SCHEMA_VERSION = 1;
@@ -18,10 +18,12 @@ const RATE_LOOKBACK_DAYS = 14;
 const RATE_READ_CAP = 5000;
 const DEFAULT_OVERRIDE_TOLERANCE_PCT = 15;
 const PERCENT = 100;
+const MAX_DELIVERIES_PER_DAY = 100;
 
 export const OverrideFailure = {
   StudentNotInSchool: "student_not_in_school",
   StudentInactive: "student_inactive",
+  NoSupply: "no_supply",
 } as const;
 
 type OverrideReason = Infer<typeof overrideReason>;
@@ -44,6 +46,35 @@ export async function mealServedOn(ctx: QueryCtx, studentId: Id<"students">, ser
   return null;
 }
 
+export type SupplyStatus = { supplied: boolean; portions: number; dishes: string[] };
+
+// No supply, no service: a school serves only once it has recorded receiving
+// a supplier delivery for that day. `serviceRequiresSupply: false` is the
+// admin's escape hatch for a supplier-side outage.
+export async function supplyFor(ctx: QueryCtx, schoolId: Id<"schools">, serviceDate: string): Promise<SupplyStatus> {
+  const deliveries = await ctx.db
+    .query("deliveries")
+    .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", schoolId).eq("serviceDate", serviceDate))
+    .take(MAX_DELIVERIES_PER_DAY);
+  const received = deliveries.filter((delivery) => (delivery.portionsReceived ?? 0) > 0);
+  const gateOff = (await readSetting(ctx, SettingKey.ServiceRequiresSupply)) === false;
+  return {
+    supplied: gateOff || received.length > 0,
+    portions: received.reduce((sum, delivery) => sum + (delivery.portionsReceived ?? 0), 0),
+    dishes: [...new Set(received.flatMap((delivery) => (delivery.dish ? [delivery.dish] : [])))],
+  };
+}
+
+export const supplyToday = query({
+  args: { schoolId: v.id("schools") },
+  returns: v.object({ serviceDate: v.string(), supplied: v.boolean(), portions: v.number(), dishes: v.array(v.string()) }),
+  handler: async (ctx, args) => {
+    await requireSchoolScope(ctx, args.schoolId);
+    const serviceDate = toServiceDate(Date.now());
+    return { serviceDate, ...(await supplyFor(ctx, args.schoolId, serviceDate)) };
+  },
+});
+
 // FR-205 / ST-03 / NFR-405: a staff-served meal is a countable meal with a
 // reason and an accountable staff id. ST-04 still holds — one meal per day,
 // whether it arrived by tap or override.
@@ -59,6 +90,9 @@ export async function serveByOverride(ctx: MutationCtx, args: OverrideArgs): Pro
   const serviceDate = toServiceDate(now);
   if (await mealServedOn(ctx, student._id, serviceDate)) {
     return { status: "already_served", serviceDate };
+  }
+  if (!(await supplyFor(ctx, args.schoolId, serviceDate)).supplied) {
+    throw new ConvexError(OverrideFailure.NoSupply);
   }
   const eventId = `${OVERRIDE_EVENT}:${student._id}:${serviceDate}`;
   await recordEvent(ctx, {

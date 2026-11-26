@@ -1,5 +1,6 @@
 "use client";
 
+import { codeMessage } from "@/app/lib/errors";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { normaliseTagUid } from "@/convex/lib/tagUid";
@@ -199,7 +200,7 @@ function LastResult({
     <div role="status" aria-live="polite" className={PANEL_CLASS}>
       <p className="text-4xl font-semibold text-green">{last.status}</p>
       <p>{name}</p>
-      {last.reason && <p className={MUTED_CLASS}>{last.reason}</p>}
+      {last.reason && <p className={MUTED_CLASS}>{codeMessage(last.reason)}</p>}
     </div>
   );
 }

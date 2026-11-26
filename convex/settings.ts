@@ -21,6 +21,7 @@ export const SettingKey = {
   StalledServiceThresholdPct: "stalledServiceThresholdPct",
   VarianceTolerancePct: "varianceTolerancePct",
   DishInsightsMinDays: "dishInsightsMinDays",
+  ServiceRequiresSupply: "serviceRequiresSupply",
   TasteLikedMaxSkipPct: "tasteLikedMaxSkipPct",
   TasteDislikedMinSkipPct: "tasteDislikedMinSkipPct",
   VarianceStreakDays: "varianceStreakDays",

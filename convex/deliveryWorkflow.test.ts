@@ -66,6 +66,9 @@ async function world() {
   const schoolId = await t.run((ctx) =>
     ctx.db.insert("schools", { code: "S1", name: "School One", active: true }),
   );
+  await t.run((ctx) =>
+    ctx.db.insert("menuItems", { dish: "githeri", active: true }),
+  );
   const otherSchool = await t.run((ctx) =>
     ctx.db.insert("schools", { code: "S2", name: "School Two", active: true }),
   );
@@ -82,6 +85,7 @@ async function dispatch(w: World, requestId = crypto.randomUUID()) {
     portions: 40,
     vehicle: "KAA 100A",
     docketRef: "DK-1",
+    dish: "githeri",
     requestId,
   });
 }
@@ -179,6 +183,7 @@ describe("school-confirmed delivery workflow", () => {
         portions: 41,
         vehicle: "KAA 100A",
         docketRef: "DK-1",
+        dish: "githeri",
         requestId: key,
       }),
     ).rejects.toThrow("different details");

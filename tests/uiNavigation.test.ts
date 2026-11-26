@@ -78,6 +78,7 @@ describe("focused workspace pages", () => {
       "deliveryDashboard:forecasts",
       "deliveryDashboard:forecasts",
       "expectations:daySummary",
+      "overrides:supplyToday",
     ]);
   });
   it("pupils mounts only the roster query", () => {
@@ -178,7 +179,7 @@ describe("focused workspace pages", () => {
   it("admin dispatch and payment file destinations remain separate", () => {
     state.role = "admin";
     renderToStaticMarkup(createElement(DeliveryGate));
-    expect(state.queries).toEqual(["deliveries:listSchools", "supplier:recentDishes"]);
+    expect(state.queries).toEqual(["deliveries:listSchools", "supplier:menu"]);
     state.queries = [];
     renderToStaticMarkup(createElement(DeliveryGate, { payment: true }));
     expect(state.queries).toEqual(["deliveries:paymentFile"]);

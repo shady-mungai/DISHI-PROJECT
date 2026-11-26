@@ -87,10 +87,14 @@ async function photoFetch(query: string, init?: RequestInit) {
 export function SupplierDispatch() {
   const schools = useQuery(api.deliveries.listSchools);
   const dispatch = useMutation(api.deliveryWorkflow.dispatch);
-  const recentDishes = useQuery(api.supplier.recentDishes);
   const task = useTask();
   const key = useRequestId();
   const [schoolId, setSchool] = useState("");
+  const menu = useQuery(
+    api.supplier.menu,
+    schoolId ? { schoolId: schoolId as Id<"schools"> } : {},
+  );
+  const rotation = menu?.filter((item) => item.active);
   const [portions, setPortions] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [docketRef, setDocket] = useState("");
@@ -116,12 +120,13 @@ export function SupplierDispatch() {
               portions: Number(portions),
               vehicle,
               docketRef,
-              dish,
+              dish: dish || rotation?.[0]?.dish || "",
             };
             const sent = await dispatch({ ...input, requestId: key(input) });
             setResult(sent);
             setPortions("");
             setDocket("");
+            setDish("");
             return "Dispatch recorded. School notification queued.";
           });
         }}
@@ -131,7 +136,10 @@ export function SupplierDispatch() {
           <select
             required
             value={schoolId}
-            onChange={(e) => setSchool(e.target.value)}
+            onChange={(e) => {
+              setSchool(e.target.value);
+              setDish("");
+            }}
             className={INPUT_CLASS}
           >
             <option value="">Choose school</option>
@@ -176,20 +184,24 @@ export function SupplierDispatch() {
           />
         </label>
         <label className="flex flex-col gap-1">
-          Dish served
-          <input
-            maxLength={60}
-            list="recent-dishes"
-            placeholder="e.g. githeri"
-            value={dish}
+          Dish from the menu
+          <select
+            required
+            value={dish || rotation?.[0]?.dish || ""}
             onChange={(e) => setDish(e.target.value)}
             className={INPUT_CLASS}
-          />
-          <datalist id="recent-dishes">
-            {recentDishes?.map((name) => (
-              <option key={name} value={name} />
+          >
+            {rotation?.length === 0 && (
+              <option value="">Add dishes on the Menu page first</option>
+            )}
+            {rotation?.map((item, index) => (
+              <option key={item._id} value={item.dish}>
+                {item.dish}
+                {index === 0 ? " — next in rotation" : ""}
+                {item.lastServed ? ` (last ${item.lastServed})` : " (not served yet)"}
+              </option>
             ))}
-          </datalist>
+          </select>
         </label>
         <button
           disabled={task.busy || !schools?.length}

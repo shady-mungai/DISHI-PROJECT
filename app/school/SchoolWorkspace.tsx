@@ -73,6 +73,10 @@ function ServiceDayPanel({
     isServicePage ? { schoolId, serviceDate: addDays(today, 1) } : "skip",
   );
 
+  const supply = useQuery(
+    api.overrides.supplyToday,
+    isServicePage ? { schoolId } : "skip",
+  );
   const summary = useQuery(
     api.expectations.daySummary,
     isServicePage ? { schoolId, serviceDate } : "skip",
@@ -159,6 +163,19 @@ function ServiceDayPanel({
       </label>
       {isServicePage && (
         <>
+          {supply && !supply.supplied && (
+            <p className="service-notice" role="alert">
+              <strong>No food delivery received today.</strong> Meal service
+              opens once you record the supplier&rsquo;s delivery.{" "}
+              <Link href="/school/deliveries">Record delivery</Link>
+            </p>
+          )}
+          {supply?.supplied && supply.portions > 0 && (
+            <p className="service-notice" role="status">
+              Today&rsquo;s menu: <strong>{supply.dishes.join(", ") || "not named"}</strong>{" "}
+              · {supply.portions} portions received.
+            </p>
+          )}
           {page === "Overview" && summary && summary.missed > 0 && (
             <p className="service-notice" role="status">
               <strong>{summary.missed} missed meals</strong> for {serviceDate}.{" "}
