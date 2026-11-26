@@ -75,7 +75,13 @@ describe("menu", () => {
     await expect(dispatch(t, world, "chips")).rejects.toThrow("active menu");
     await expect(dispatch(t, world, "pilau")).rejects.toThrow("active menu");
     const { deliveryId } = await dispatch(t, world, "  GITHERI ");
-    expect((await t.run((ctx) => ctx.db.get(deliveryId)))?.dish).toBe("githeri");
+    const delivery = await t.run((ctx) => ctx.db.get(deliveryId));
+    expect(delivery?.dish).toBe("githeri");
+    expect(delivery?.reference).toBe("SCH-1-260921-1");
+    expect(delivery?.docketRef).toBe("D-1");
+    const second = await t.run((ctx) => dispatchDelivery(ctx, world.supplier, { schoolId: world.schoolId, portions: 2, vehicle: "KDA 001", requestId: "r-second", dish: "githeri" }));
+    expect(second.reference).toBe("SCH-1-260921-2");
+    expect((await t.run((ctx) => ctx.db.get(second.deliveryId)))?.docketRef).toBe("SCH-1-260921-2");
   });
 
   test("rotation puts never-served dishes first, then the longest since served", () => {

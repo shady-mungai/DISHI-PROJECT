@@ -32,7 +32,7 @@ export const dispatchArgs = {
   schoolId: v.id("schools"),
   portions: v.number(),
   vehicle: v.string(),
-  docketRef: v.string(),
+  docketRef: v.optional(v.string()),
   requestId: v.string(),
   dish: v.string(),
 };
@@ -43,14 +43,15 @@ export async function dispatchDelivery(
     schoolId: Id<"schools">;
     portions: number;
     vehicle: string;
-    docketRef: string;
+    docketRef?: string;
     requestId: string;
     dish: string;
   },
 ) {
   checkPortions(args.portions, false);
   const vehicle = textField(args.vehicle, "Vehicle", 100);
-  const docketRef = textField(args.docketRef, "Docket reference", 100);
+  // Optional: the supplier's own paper docket number, when they keep one.
+  const supplierDocket = args.docketRef?.trim() ? textField(args.docketRef, "Docket reference", 100) : "";
   // Suppliers serve what is on the menu, so every dispatch names one active dish.
   const dish = normaliseDish(args.dish);
   const onMenu = await ctx.db
@@ -61,7 +62,7 @@ export async function dispatchDelivery(
     throw new ConvexError("Choose a dish from the active menu.");
   const key = requestKey(actor._id, args.requestId);
   const fingerprint = await sha256Hex(
-    JSON.stringify([args.schoolId, args.portions, vehicle, docketRef, dish]),
+    JSON.stringify([args.schoolId, args.portions, vehicle, supplierDocket, dish]),
   );
   const previous = await ctx.db
     .query("deliveries")
@@ -93,12 +94,21 @@ export async function dispatchDelivery(
   const school = await ctx.db.get(args.schoolId);
   if (!school?.active) throw new ConvexError("Choose an active pilot school.");
   const now = Date.now();
+  const serviceDate = toServiceDate(now);
+  // Readable over the phone: school code, YYMMDD, and that day's delivery count.
+  const sameDay = await ctx.db
+    .query("deliveries")
+    .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", args.schoolId).eq("serviceDate", serviceDate))
+    .take(100);
+  const reference = `${school.code}-${serviceDate.slice(2).replaceAll("-", "")}-${sameDay.length + 1}`;
+  const docketRef = supplierDocket || reference;
   const deliveryId = await ctx.db.insert("deliveries", {
     schoolId: args.schoolId,
-    serviceDate: toServiceDate(now),
+    serviceDate,
     portions: args.portions,
     vehicle,
     docketRef,
+    reference,
     dish,
     declaredBy: supplierId,
     dispatchedAt: now,
@@ -111,14 +121,12 @@ export async function dispatchDelivery(
     requestFingerprint: fingerprint,
     reviewRequired: false,
   });
-  const reference = `DLV-${deliveryId}`;
-  await ctx.db.patch(deliveryId, { reference });
   const delivery = (await ctx.db.get(deliveryId))!;
   await timeline(
     ctx,
     deliveryId,
     "dispatched",
-    `${args.portions} portions dispatched. Vehicle ${vehicle}; docket ${docketRef}.`,
+    `${args.portions} portions of ${dish} dispatched. Vehicle ${vehicle}${supplierDocket ? `; docket ${supplierDocket}` : ""}.`,
     actor._id,
   );
   const deadline = new Date(now + ARRIVAL_MS).toLocaleTimeString("en-GB", {
@@ -440,7 +448,7 @@ export const markOverdue = internalMutation({
       ctx,
       delivery,
       "overdue",
-      `Delivery ${delivery.reference} is overdue: ${delivery.portions} portions, docket ${delivery.docketRef}. Contact the school and supplier. Late receipt can still be recorded.`,
+      `Delivery ${delivery.reference ?? delivery.docketRef} is overdue: ${delivery.portions} portions. Contact the school and supplier. Late receipt can still be recorded.`,
       true,
     );
     return true;
