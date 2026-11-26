@@ -21,6 +21,8 @@ export const SettingKey = {
   StalledServiceThresholdPct: "stalledServiceThresholdPct",
   VarianceTolerancePct: "varianceTolerancePct",
   DishInsightsMinDays: "dishInsightsMinDays",
+  TasteLikedMaxSkipPct: "tasteLikedMaxSkipPct",
+  TasteDislikedMinSkipPct: "tasteDislikedMinSkipPct",
   VarianceStreakDays: "varianceStreakDays",
   OverrideRateTolerancePct: "overrideRateTolerancePct",
   ClockSkewToleranceSeconds: "clockSkewToleranceSeconds",
@@ -108,6 +110,16 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     key: SettingKey.VarianceTolerancePct,
     value: 10,
     description: "Reconciliation variance considered actionable",
+  },
+  {
+    key: SettingKey.TasteLikedMaxSkipPct,
+    value: 10,
+    description: "Skip rate below which a dish counts as liked",
+  },
+  {
+    key: SettingKey.TasteDislikedMinSkipPct,
+    value: 30,
+    description: "Skip rate above which a dish counts as disliked",
   },
   {
     key: SettingKey.VarianceStreakDays,

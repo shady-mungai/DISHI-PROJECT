@@ -171,7 +171,7 @@ function soleDish(deliveries: ReadonlyArray<Doc<"deliveries">>): string | null {
   return dishes.size === 1 && only ? only : null;
 }
 
-async function dishesByDay(ctx: QueryCtx, schoolId: Id<"schools">, range: DateRange): Promise<Map<string, string | null>> {
+export async function dishesByDay(ctx: QueryCtx, schoolId: Id<"schools">, range: DateRange): Promise<Map<string, string | null>> {
   const deliveries = await ctx.db
     .query("deliveries")
     .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", schoolId).gte("serviceDate", range.from).lte("serviceDate", range.to))

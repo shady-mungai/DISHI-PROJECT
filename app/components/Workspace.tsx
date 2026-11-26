@@ -10,6 +10,7 @@ export const destinations = {
     ["", "Overview"],
     ["/service", "Meal service"],
     ["/register", "Attendance register"],
+    ["/taste", "Taste insights"],
     ["/pupils", "Pupils"],
     ["/deliveries", "Deliveries"],
     ["/readers", "Readers"],

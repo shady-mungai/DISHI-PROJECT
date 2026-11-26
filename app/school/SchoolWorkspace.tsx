@@ -8,6 +8,7 @@ import { OverridePanel } from "@/app/service-day/OverridePanel";
 import { ReaderHealth } from "@/app/service-day/ReaderHealth";
 import { RegisterPanel } from "@/app/service-day/RegisterPanel";
 import { RosterPanel } from "@/app/service-day/RosterPanel";
+import { TastePanel } from "@/app/school/TastePanel";
 import { useAction, useMutation, useQuery } from "convex/react";
 import Link from "@/app/components/DateLink";
 import { useUrlDate } from "@/app/components/useUrlDate";
@@ -241,6 +242,7 @@ function ServiceDayPanel({
         </>
       )}
       {page === "Attendance register" && <RegisterPanel schoolId={schoolId} />}
+      {page === "Taste insights" && <TastePanel schoolId={schoolId} />}
       {page === "Communications" && <DeliveryInbox />}
       {page === "Readers" && (
         <>

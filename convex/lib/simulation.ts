@@ -19,7 +19,7 @@ const MILLISECONDS_PER_MINUTE = 60_000;
 const UINT32_RANGE = 4_294_967_296;
 
 // ponytail: mulberry32 — 32-bit, not cryptographic; fine for a regression seed.
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;
