@@ -116,7 +116,7 @@ function SupplierPanel({
       {page === "Overview" &&
         overview?.unconfirmed.map((delivery) => (
           <p key={delivery._id} className={ALERT_CLASS} role="status">
-            {delivery.schoolCode} has not confirmed docket {delivery.docketRef}{" "}
+            {delivery.schoolCode} has not confirmed delivery {delivery.docketRef}{" "}
             ({delivery.portions} portions, {delivery.serviceDate}) — expected by{" "}
             {new Date(delivery.expectedConfirmBy).toLocaleTimeString("en-KE", {
               timeZone: "Africa/Nairobi",

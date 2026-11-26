@@ -94,7 +94,6 @@ export function SupplierDispatch() {
   const [schoolId, setSchool] = useState("");
   const [portions, setPortions] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [docketRef, setDocket] = useState("");
   const [dish, setDish] = useState("");
   const [result, setResult] = useState<{
     reference: string;
@@ -116,13 +115,11 @@ export function SupplierDispatch() {
               schoolId: schoolId as Id<"schools">,
               portions: Number(portions),
               vehicle,
-              docketRef,
               dish,
             };
             const sent = await dispatch({ ...input, requestId: key(input) });
             setResult(sent);
             setPortions("");
-            setDocket("");
             return "Dispatch recorded. School notification queued.";
           });
         }}
@@ -163,16 +160,6 @@ export function SupplierDispatch() {
             maxLength={100}
             value={vehicle}
             onChange={(e) => setVehicle(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Docket reference
-          <input
-            required
-            maxLength={100}
-            value={docketRef}
-            onChange={(e) => setDocket(e.target.value)}
             className={INPUT_CLASS}
           />
         </label>
@@ -671,9 +658,11 @@ export function DeliveryCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {delivery.schoolName} · {delivery.docketRef}
+            {delivery.schoolName} · {delivery.reference}
           </h3>
-          <p className={MUTED_CLASS}>{delivery.reference}</p>
+          {delivery.docketRef !== delivery.reference && (
+            <p className={MUTED_CLASS}>Supplier docket {delivery.docketRef}</p>
+          )}
         </div>
         <span className={overdue ? ALERT_CLASS : "font-medium text-green"}>
           {overdue
