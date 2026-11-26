@@ -16,6 +16,7 @@ import {
   MUTED_CLASS,
   PANEL_CLASS,
   SECONDARY_BUTTON_CLASS,
+  DISCLOSURE_SUMMARY_CLASS,
   SECTION_TITLE_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
@@ -781,65 +782,69 @@ export function DeliveryHistory({
     { initialNumItems: 10 },
   );
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className={SECTION_TITLE_CLASS}>Delivery history</h2>
-      <div className="flex flex-wrap gap-3">
-        {!schoolId && (
-          <label className="flex min-w-0 flex-col gap-1">
-            School filter
-            <select
+    <details>
+      <summary className={DISCLOSURE_SUMMARY_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Delivery history</h2>
+      </summary>
+      <div className="mt-4 flex flex-col gap-4">
+        <div className="flex flex-wrap gap-3">
+          {!schoolId && (
+            <label className="flex min-w-0 flex-col gap-1">
+              School filter
+              <select
+                className={INPUT_CLASS}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="">All pilot schools</option>
+                {schools?.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex flex-col gap-1">
+            History from
+            <input
+              type="date"
               className={INPUT_CLASS}
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="">All pilot schools</option>
-              {schools?.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
           </label>
+          <label className="flex flex-col gap-1">
+            History to
+            <input
+              type="date"
+              className={INPUT_CLASS}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </label>
+        </div>
+        {result.status === "LoadingFirstPage" && (
+          <p role="status">Loading history…</p>
         )}
-        <label className="flex flex-col gap-1">
-          History from
-          <input
-            type="date"
-            className={INPUT_CLASS}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          History to
-          <input
-            type="date"
-            className={INPUT_CLASS}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </label>
+        {result.status !== "LoadingFirstPage" && !result.results.length && (
+          <p>No deliveries in this period.</p>
+        )}
+        {result.results.map((row) => (
+          <DeliveryCard key={row._id} delivery={row} role={role} />
+        ))}
+        {result.status !== "Exhausted" && (
+          <button
+            type="button"
+            disabled={result.status !== "CanLoadMore"}
+            className={SECONDARY_BUTTON_CLASS}
+            onClick={() => result.loadMore(10)}
+          >
+            Load more deliveries
+          </button>
+        )}
       </div>
-      {result.status === "LoadingFirstPage" && (
-        <p role="status">Loading history…</p>
-      )}
-      {result.status !== "LoadingFirstPage" && !result.results.length && (
-        <p>No deliveries in this period.</p>
-      )}
-      {result.results.map((row) => (
-        <DeliveryCard key={row._id} delivery={row} role={role} />
-      ))}
-      {result.status !== "Exhausted" && (
-        <button
-          type="button"
-          disabled={result.status !== "CanLoadMore"}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() => result.loadMore(10)}
-        >
-          Load more deliveries
-        </button>
-      )}
-    </section>
+    </details>
   );
 }
 export function ForecastPanel({ schoolId }: { schoolId?: Id<"schools"> }) {
@@ -887,41 +892,49 @@ export function DeliveryInbox() {
   const rows = useQuery(api.deliveryNotifications.inbox);
   const mark = useMutation(api.deliveryNotifications.markRead);
   const task = useTask();
+  const unread = rows?.filter((row) => !row.readAt).length ?? 0;
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className={SECTION_TITLE_CLASS}>Delivery inbox</h2>
-      {rows === undefined && <p role="status">Loading notifications…</p>}
-      {rows?.length === 0 && <p>No delivery notifications.</p>}
-      <ul className="flex flex-col gap-3">
-        {rows?.map((row) => (
-          <li
-            key={row._id}
-            className={`${PANEL_CLASS} [overflow-wrap:anywhere]`}
-          >
-            <p>{row.body}</p>
-            <p className={MUTED_CLASS}>
-              {receiptTime(row._creationTime)} EAT ·{" "}
-              {row.readAt ? "Read" : "Unread"}
-            </p>
-            {!row.readAt && (
-              <button
-                disabled={task.busy}
-                className={SECONDARY_BUTTON_CLASS}
-                onClick={() =>
-                  void task.run(async () => {
-                    await mark({ id: row._id });
-                    return "Notification marked read.";
-                  })
-                }
-              >
-                Mark read
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <Feedback task={task} />
-    </section>
+    <details>
+      <summary className={DISCLOSURE_SUMMARY_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Delivery inbox</h2>
+        {unread > 0 && (
+          <span className={`${MUTED_CLASS} ml-2`}>{unread} unread</span>
+        )}
+      </summary>
+      <div className="mt-3 flex flex-col gap-3">
+        {rows === undefined && <p role="status">Loading notifications…</p>}
+        {rows?.length === 0 && <p>No delivery notifications.</p>}
+        <ul className="flex flex-col gap-3">
+          {rows?.map((row) => (
+            <li
+              key={row._id}
+              className={`${PANEL_CLASS} [overflow-wrap:anywhere]`}
+            >
+              <p>{row.body}</p>
+              <p className={MUTED_CLASS}>
+                {receiptTime(row._creationTime)} EAT ·{" "}
+                {row.readAt ? "Read" : "Unread"}
+              </p>
+              {!row.readAt && (
+                <button
+                  disabled={task.busy}
+                  className={SECONDARY_BUTTON_CLASS}
+                  onClick={() =>
+                    void task.run(async () => {
+                      await mark({ id: row._id });
+                      return "Notification marked read.";
+                    })
+                  }
+                >
+                  Mark read
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        <Feedback task={task} />
+      </div>
+    </details>
   );
 }
 export function AdminDeliveryReview() {
