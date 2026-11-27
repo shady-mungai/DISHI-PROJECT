@@ -119,7 +119,6 @@ export async function dispatchDelivery(
     delivery,
     "dispatched",
     `${school.name}: ${args.portions} portions incoming. Reference ${reference}. Expected by ${deadline} EAT. Confirm receipt in Dishi.`,
-    ["school", "supplier"],
   );
   await ctx.scheduler.runAt(
     now + ARRIVAL_MS,
