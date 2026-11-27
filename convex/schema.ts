@@ -73,7 +73,9 @@ export default defineSchema({
     displayName: v.string(),
     role: userRole,
     schoolId: v.optional(v.id("schools")),
-  }).index("by_authUserId", ["authUserId"]),
+  })
+    .index("by_authUserId", ["authUserId"])
+    .index("by_role", ["role"]),
 
   schools: defineTable({
     code: v.string(),
@@ -232,6 +234,8 @@ export default defineSchema({
     schoolId: v.id("schools"),
     serviceDate: v.string(),
     portions: v.number(),
+    containers: v.optional(v.number()),
+    netKg: v.optional(v.number()),
     vehicle: v.optional(v.string()),
     docketRef: v.string(),
     dispatchedAt: v.number(),
@@ -252,12 +256,15 @@ export default defineSchema({
     receiptRecordedAt: v.optional(v.number()),
     receiptConfirmedAt: v.optional(v.number()),
     receiptBy: v.optional(v.id("users")),
-    receiptMethod: v.optional(v.union(v.literal("photo"), v.literal("code"))),
+    receiptMethod: v.optional(v.union(v.literal("photo"), v.literal("code"))), // "photo" = legacy rows only
     reportedProblem: v.optional(v.string()),
-    evidenceId: v.optional(v.id("deliveryEvidence")),
-    missingEvidence: v.optional(v.boolean()),
     reviewRequired: v.optional(v.boolean()),
     reviewResolvedAt: v.optional(v.number()),
+    // Legacy photo-evidence fields (photo confirmation and AI assessment are
+    // removed). Kept so existing rows still validate; drop once deployments
+    // are cleared of them.
+    evidenceId: v.optional(v.id("deliveryEvidence")),
+    missingEvidence: v.optional(v.boolean()),
     photoReview: v.optional(photoReview),
     photoGeneration: v.optional(v.number()),
     photoAttempts: v.optional(v.number()),
@@ -277,6 +284,7 @@ export default defineSchema({
     .index("by_schoolId_and_status", ["schoolId", "status"])
     .index("by_reviewRequired", ["reviewRequired"]),
 
+  // Legacy: photo uploads are no longer accepted; table kept for existing rows.
   deliveryEvidence: defineTable({
     deliveryId: v.id("deliveries"), uploadedBy: v.id("users"), storageId: v.id("_storage"),
     contentType: v.string(), size: v.number(), requestKey: v.string(),

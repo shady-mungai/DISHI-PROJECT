@@ -6,11 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
-import {
-  ARRIVAL_MS,
-  CODE_COOLDOWN_MS,
-  PHOTO_MODEL,
-} from "./lib/deliveryWorkflow";
+import { ARRIVAL_MS, CODE_COOLDOWN_MS } from "./lib/deliveryWorkflow";
 import { paymentLines, reconcileDay } from "./deliveries";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -89,37 +85,17 @@ async function dispatch(w: World, requestId = crypto.randomUUID()) {
     requestId,
   });
 }
-const png = () =>
-  new Uint8Array([
-    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0,
-    0, 0, 1,
-  ]);
-async function photo(w: World, deliveryId: Id<"deliveries">) {
-  const response = await w.school.client.fetch("/delivery-photo", {
-    method: "POST",
-    headers: {
-      "Content-Type": "image/png",
-      "X-Delivery-Id": deliveryId,
-      "X-Request-Id": crypto.randomUUID(),
-    },
-    body: png(),
-  });
-  expect(response.status).toBe(200);
-  return ((await response.json()) as { evidenceId: Id<"deliveryEvidence"> })
-    .evidenceId;
-}
 async function receipt(w: World, portionsReceived = 40, problem = "") {
   const { deliveryId } = await dispatch(w);
-  const evidenceId = await photo(w, deliveryId);
-  const args = {
+  const issued = await w.school.client.mutation(api.deliveryWorkflow.requestCode, {
     deliveryId,
-    evidenceId,
     portionsReceived,
     problem,
     requestId: crypto.randomUUID(),
-  };
-  await w.school.client.mutation(api.deliveryWorkflow.submitReceipt, args);
-  return { deliveryId, evidenceId, args };
+  });
+  const redeemArgs = { deliveryId, code: issued.code!, requestId: crypto.randomUUID() };
+  await w.supplier.client.mutation(api.deliveryWorkflow.redeemCode, redeemArgs);
+  return { deliveryId, redeemArgs };
 }
 async function code(
   w: World,
@@ -172,8 +148,10 @@ describe("school-confirmed delivery workflow", () => {
       serviceDate: DAY,
     });
     expect(
-      await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect()),
-    ).toHaveLength(1);
+      (await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect())).map(
+        (r) => r.recipientKey,
+      ),
+    ).toEqual([`school:${w.schoolId}`]);
     expect(
       await w.admin.client.query(api.deliveryNotifications.failures, {}),
     ).toHaveLength(1);
@@ -188,19 +166,19 @@ describe("school-confirmed delivery workflow", () => {
       }),
     ).rejects.toThrow("different details");
   });
-  test("matching photo receipt confirms immediately, idempotently, while assessment is pending", async () => {
+  test("matching code receipt confirms immediately and idempotently, without admin review", async () => {
     const w = await world();
     const r = await receipt(w);
     expect(
-      await w.school.client.mutation(
-        api.deliveryWorkflow.submitReceipt,
-        r.args,
+      await w.supplier.client.mutation(
+        api.deliveryWorkflow.redeemCode,
+        r.redeemArgs,
       ),
     ).toEqual({ status: "confirmed" });
     expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
       status: "confirmed",
-      photoReview: "pending",
-      receiptMethod: "photo",
+      reviewRequired: false,
+      receiptMethod: "code",
       portionsReceived: 40,
     });
     expect(
@@ -267,7 +245,7 @@ describe("school-confirmed delivery workflow", () => {
       ).toHaveLength(1);
     },
   );
-  test("fallback records receipt, invalidates replaced codes, and retains missing evidence after redemption", async () => {
+  test("code records receipt, invalidates replaced codes, and confirms without review", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
     const first = await code(w, deliveryId);
@@ -279,10 +257,13 @@ describe("school-confirmed delivery workflow", () => {
       status: "confirmed",
     });
     expect(await w.t.run((ctx) => ctx.db.get(deliveryId))).toMatchObject({
+      status: "confirmed",
       receiptMethod: "code",
-      missingEvidence: true,
-      reviewRequired: true,
+      reviewRequired: false,
     });
+    expect(
+      await w.t.run((ctx) => paymentLines(ctx, { from: DAY, to: DAY })),
+    ).toHaveLength(1);
     const stored = await w.t.run((ctx) =>
       ctx.db.query("receiptCodes").unique(),
     );
@@ -316,7 +297,7 @@ describe("school-confirmed delivery workflow", () => {
       status: "confirmed",
     });
   });
-  test("expired codes cannot confirm, while a new code and late photo receipt remain possible", async () => {
+  test("expired codes cannot confirm, while a new code remains possible", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
     const issued = await code(w, deliveryId);
@@ -327,16 +308,10 @@ describe("school-confirmed delivery workflow", () => {
     expect(
       await w.t.mutation(internal.deliveryWorkflow.markOverdue, { deliveryId }),
     ).toBe(false);
-    const evidenceId = await photo(w, deliveryId);
-    expect(
-      await w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-        deliveryId,
-        evidenceId,
-        portionsReceived: 40,
-        problem: "",
-        requestId: crypto.randomUUID(),
-      }),
-    ).toEqual({ status: "confirmed" });
+    const replacement = await code(w, deliveryId);
+    expect(await redeem(w, deliveryId, replacement.code!)).toEqual({
+      status: "confirmed",
+    });
   });
   test("overdue escalation fires once to school, supplier and admin; late receipts still confirm", async () => {
     const w = await world();
@@ -363,30 +338,19 @@ describe("school-confirmed delivery workflow", () => {
   test("concurrent confirmations cannot overwrite school quantities", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
-    const evidenceId = await photo(w, deliveryId);
-    const args = {
-      deliveryId,
-      evidenceId,
-      portionsReceived: 40,
-      problem: "",
-      requestId: crypto.randomUUID(),
-    };
+    const issued = await code(w, deliveryId);
     const settled = await Promise.allSettled([
-      w.school.client.mutation(api.deliveryWorkflow.submitReceipt, args),
-      w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-        ...args,
-        portionsReceived: 39,
-        requestId: crypto.randomUUID(),
-      }),
+      redeem(w, deliveryId, issued.code!),
+      redeem(w, deliveryId, issued.code!),
     ]);
-    expect(settled.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(settled.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
     expect(
       (
         await w.admin.client.query(api.deliveryDashboard.detail, { deliveryId })
-      ).timeline.filter((e) => e.type.startsWith("receipt.")),
+      ).timeline.filter((e) => e.type === "receipt.confirmed"),
     ).toHaveLength(1);
   });
-  test("school boundaries, supplier ownership, admin reasons and private photo access are enforced", async () => {
+  test("school boundaries, supplier ownership, admin reasons are enforced", async () => {
     const w = await world();
     const r = await receipt(w);
     const stranger = await user(w.t, "supplier");
@@ -418,68 +382,22 @@ describe("school-confirmed delivery workflow", () => {
         requestId: crypto.randomUUID(),
       }),
     ).rejects.toThrow("scope");
-    expect(
-      (await w.other.client.fetch(`/delivery-photo?id=${r.evidenceId}`)).status,
-    ).toBe(403);
-    expect((await w.t.fetch(`/delivery-photo?id=${r.evidenceId}`)).status).toBe(
-      401,
-    );
-    expect(
-      (await w.school.client.fetch(`/delivery-photo?id=${r.evidenceId}`))
-        .status,
-    ).toBe(200);
     const detail = await w.school.client.query(api.deliveryDashboard.detail, {
       deliveryId: r.deliveryId,
     });
     expect(JSON.stringify(detail)).not.toContain("storageId");
     expect(JSON.stringify(detail)).not.toContain("confirmCodeHash");
   });
-  test("upload rejects unrelated owners, wrong types and over-10 MB before storage", async () => {
+  test("photo evidence is gone: no upload route, no photo confirmation", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
-    for (const [contentType, body, status] of [
-      ["image/png", new Uint8Array([1, 2, 3]), 415],
-      ["image/png", new Uint8Array(10 * 1024 * 1024 + 1), 413],
-    ] as const) {
-      const result = await w.school.client.fetch("/delivery-photo", {
-        method: "POST",
-        headers: {
-          "Content-Type": contentType,
-          "X-Delivery-Id": deliveryId,
-          "X-Request-Id": crypto.randomUUID(),
-        },
-        body,
-      });
-      expect(result.status).toBe(status);
-    }
-    const r = await w.other.client.fetch("/delivery-photo", {
+    const response = await w.school.client.fetch("/delivery-photo", {
       method: "POST",
-      headers: {
-        "Content-Type": "image/png",
-        "X-Delivery-Id": deliveryId,
-        "X-Request-Id": crypto.randomUUID(),
-      },
-      body: png(),
+      headers: { "Content-Type": "image/png", "X-Delivery-Id": deliveryId },
+      body: new Uint8Array([137, 80, 78, 71]),
     });
-    expect(r.status).toBe(400);
-    expect(
-      await w.t.run((ctx) => ctx.db.query("deliveryEvidence").collect()),
-    ).toHaveLength(0);
-  });
-  test("photo evidence is bound to its delivery", async () => {
-    const w = await world();
-    const first = await dispatch(w);
-    const second = await dispatch(w);
-    const evidenceId = await photo(w, first.deliveryId);
-    await expect(
-      w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-        deliveryId: second.deliveryId,
-        evidenceId,
-        portionsReceived: 40,
-        problem: "",
-        requestId: crypto.randomUUID(),
-      }),
-    ).rejects.toThrow("Upload a photo");
+    expect(response.status).toBe(404);
+    expect("submitReceipt" in api.deliveryWorkflow).toBe(false);
   });
   test("forecasts distinguish zero from unavailable and non-school days", async () => {
     const w = await world();
@@ -523,95 +441,124 @@ describe("school-confirmed delivery workflow", () => {
   });
 });
 
-describe("advisory Groq and operational SMS", () => {
-  test.each([true, false])(
-    "Groq clear=%s does not change confirmation or payment eligibility",
-    async (clear) => {
-      vi.stubEnv("GROQ_API_KEY", "test-key");
-      const w = await world();
-      const r = await receipt(w);
-      const fetchMock = vi.fn<typeof fetch>(async () =>
-        Response.json({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  foodVisible: clear,
-                  clarity: "clear",
-                  unrelatedContent: !clear,
-                  description: "Visible food containers",
-                }),
-              },
-            },
-          ],
+describe("operational SMS", () => {
+  test("confirmation, dispute and admin resolution notify the school and supplier", async () => {
+    const w = await world();
+    const inboxFor = async (deliveryId: Id<"deliveries">) =>
+      (
+        await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect())
+      ).filter((r) => r.deliveryId === deliveryId);
+    const ok = await receipt(w);
+    const confirmed = (await inboxFor(ok.deliveryId)).filter((r) =>
+      r.dedupeKey.includes(":receipt.confirmed:"),
+    );
+    expect(confirmed.map((r) => r.recipientKey).sort()).toEqual(
+      [`school:${w.schoolId}`, `supplier:${w.supplier.id}`].sort(),
+    );
+    expect(confirmed[0].body).toContain("confirmed: 40 of 40");
+    const bad = await receipt(w, 38, "Short");
+    const disputed = (await inboxFor(bad.deliveryId)).filter((r) =>
+      r.dedupeKey.includes(":receipt.disputed:"),
+    );
+    expect(disputed.map((r) => r.recipientKey)).toContain("admin");
+    await w.admin.client.mutation(api.deliveryWorkflow.resolve, {
+      deliveryId: bad.deliveryId,
+      decision: "confirm",
+      reason: "Reconciled",
+      requestId: crypto.randomUUID(),
+    });
+    expect(
+      (await inboxFor(bad.deliveryId)).filter((r) =>
+        r.dedupeKey.includes(":admin.confirmed:"),
+      ),
+    ).toHaveLength(2);
+  });
+  test("Celcom simulation: each actor receives exactly the expected delivery SMS", async () => {
+    const w = await world();
+    await w.t.run((ctx) =>
+      ctx.db.insert("settings", {
+        key: "smsChannel",
+        value: "celcom",
+        description: "test",
+      }),
+    );
+    vi.stubEnv("CELCOM_URL", "https://celcom.test/send");
+    vi.stubEnv("CELCOM_API_KEY", "k");
+    vi.stubEnv("CELCOM_PARTNER_ID", "p");
+    vi.stubEnv("CELCOM_SHORTCODE", "DISHI");
+    const sent: { mobile: string; message: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent.push(JSON.parse(String(init.body)));
+        return new Response(
+          JSON.stringify({ responses: [{ "response-code": 200, messageid: sent.length }] }),
+          { status: 200 },
+        );
+      }),
+    );
+    const numbers = { school: "+254711000001", supplier: "+254711000002", admin: "+254711000003" };
+    for (const [audience, msisdn] of Object.entries(numbers))
+      await w.admin.client.mutation(api.deliveryNotifications.saveContact, {
+        ...(audience === "school" ? { schoolId: w.schoolId } : {}),
+        ...(audience === "supplier" ? { supplierId: w.supplier.id } : {}),
+        name: audience,
+        msisdn,
+        active: true,
+      });
+    const flush = async () => {
+      for (const row of await w.t.run((ctx) =>
+        ctx.db.query("deliverySms").collect(),
+      ))
+        if (row.status === "queued")
+          await w.t.action(internal.deliveryNotifications.send, { smsId: row._id });
+    };
+    const inbox = (m: string) =>
+      sent.filter((x) => x.mobile === m.slice(1)).map((x) => x.message);
+    const step = async (label: string, run: () => Promise<unknown>) => {
+      const before = sent.length;
+      await run();
+      await flush();
+      return { label, to: sent.slice(before).map((x) => x.mobile).sort() };
+    };
+    const digits = (k: keyof typeof numbers) => numbers[k].slice(1);
+    let goodId: Id<"deliveries">;
+    let badId: Id<"deliveries">;
+    const steps = [
+      await step("dispatch", async () => (goodId = (await dispatch(w)).deliveryId)),
+      await step("code receipt confirmed", async () => {
+        const issued = await code(w, goodId);
+        await redeem(w, goodId, issued.code!);
+      }),
+      await step("dispatch #2", async () => (badId = (await dispatch(w)).deliveryId)),
+      await step("code receipt disputed", async () => {
+        const issued = await code(w, badId, 35);
+        await redeem(w, badId, issued.code!);
+      }),
+      await step("admin confirms", () =>
+        w.admin.client.mutation(api.deliveryWorkflow.resolve, {
+          deliveryId: badId, decision: "confirm", reason: "Reconciled with school", requestId: crypto.randomUUID(),
         }),
-      );
-      vi.stubGlobal("fetch", fetchMock);
-      await w.t.action(internal.deliveryAssessment.assess, {
-        deliveryId: r.deliveryId,
-        generation: 1,
-        attempt: 0,
-      });
-      expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
-        status: "confirmed",
-        photoReview: clear ? "clear" : "flagged",
-        photoModel: PHOTO_MODEL,
-      });
-      expect(
-        await w.t.run((ctx) => paymentLines(ctx, { from: DAY, to: DAY })),
-      ).toHaveLength(1);
-      expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).model).toBe(
-        PHOTO_MODEL,
-      );
-    },
-  );
-  test.each(["malformed", "unavailable"])(
-    "%s Groq responses retry three times then allow audited retry",
-    async (failure) => {
-      vi.stubEnv("GROQ_API_KEY", "test-key");
-      const w = await world();
-      const r = await receipt(w);
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async () =>
-          failure === "unavailable"
-            ? new Response("unavailable", { status: 503 })
-            : Response.json({ choices: [{ message: { content: "{}" } }] }),
+      ),
+    ];
+    console.log(JSON.stringify(steps));
+    expect(steps.map((x) => x.to)).toEqual([
+      [digits("school")],
+      [digits("school"), digits("supplier")].sort(),
+      [digits("school")],
+      [digits("school"), digits("supplier"), digits("admin")].sort(),
+      [digits("school"), digits("supplier")].sort(),
+    ]);
+    expect(inbox(numbers.supplier).some((m) => m.includes("incoming"))).toBe(false);
+    expect(inbox(numbers.admin)[0]).toContain("disputed: 35 of 40");
+    expect(
+      new Set(
+        (await w.t.run((ctx) => ctx.db.query("deliverySms").collect())).map(
+          (r) => r.status,
         ),
-      );
-      for (let attempt = 0; attempt < 4; attempt++)
-        await w.t.action(internal.deliveryAssessment.assess, {
-          deliveryId: r.deliveryId,
-          generation: 1,
-          attempt,
-        });
-      expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
-        status: "confirmed",
-        photoReview: "failed",
-        photoAttempts: 4,
-        reviewRequired: true,
-      });
-      await w.admin.client.mutation(api.deliveryAssessment.retry, {
-        deliveryId: r.deliveryId,
-        reason: "Provider recovered",
-      });
-      expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
-        photoReview: "pending",
-        photoGeneration: 2,
-        photoAttempts: 0,
-      });
-      await w.t.mutation(internal.deliveryAssessment.finish, {
-        deliveryId: r.deliveryId,
-        generation: 1,
-        attempt: 4,
-        transient: false,
-        error: "stale",
-      });
-      expect(
-        (await w.t.run((ctx) => ctx.db.get(r.deliveryId)))?.photoReview,
-      ).toBe("pending");
-    },
-  );
+      ),
+    ).toEqual(new Set(["sent"]));
+  });
   test("SMS contacts deduplicate and failed sends remain visible without changing receipt", async () => {
     const w = await world();
     const contact = {
@@ -631,14 +578,20 @@ describe("advisory Groq and operational SMS", () => {
     const key = crypto.randomUUID();
     const { deliveryId } = await dispatch(w, key);
     await dispatch(w, key);
-    const sms = await w.t.run((ctx) => ctx.db.query("deliverySms").collect());
+    const sms = (
+      await w.t.run((ctx) => ctx.db.query("deliverySms").collect())
+    ).filter((s) => s.msisdn);
     expect(sms).toHaveLength(1);
     await w.t.action(internal.deliveryNotifications.send, {
       smsId: sms[0]._id,
     });
     expect(
       await w.admin.client.query(api.deliveryNotifications.failures, {}),
-    ).toMatchObject([{ failureReason: "SMS console mode: no SMS sent" }]);
+    ).toContainEqual(
+      expect.objectContaining({
+        failureReason: "SMS console mode: no SMS sent",
+      }),
+    );
     expect((await w.t.run((ctx) => ctx.db.get(deliveryId)))?.status).toBe(
       "declared",
     );

@@ -24,9 +24,8 @@ only for additional intentional frontend origins; preserve existing values when
 changing it. Keep localhost and the development tunnel on the development backend.
 
 Configure the production integrations you use in Convex: `USSD_TOKEN`, `DLR_TOKEN`,
-Africa's Talking or Celcom credentials, and `GROQ_API_KEY` for AI delivery photo
-assessment. The SMS channel defaults to console logging; configure the real channel
-and programme settings before live use. AI receipt review needs a valid Groq key.
+and Africa's Talking or Celcom credentials. The SMS channel defaults to console
+logging; configure the real channel and programme settings before live use.
 Keep all these secrets out of Cloudflare build variables and `NEXT_PUBLIC_*` values.
 
 Deploy the backend from the project root:
@@ -101,7 +100,7 @@ D1 or KV binding is required: the app renders dynamically and stores data in Con
 
 - Open `https://mlo.2003.studio/` and `/login`; sign in, reload, and sign out.
 - Check each provisioned role's workspace and confirm access restrictions.
-- Verify roster import, deliveries, photo upload/read and AI assessment with test data.
+- Verify roster import, deliveries and receipt-code confirmation with test data.
 - Check SMS/USSD callbacks against the production Convex HTTP actions URL.
 - On Android, sync queued taps on the old reader origin **before** switching.
   Open `https://mlo.2003.studio/reader`, sign in, provision the reader again, and

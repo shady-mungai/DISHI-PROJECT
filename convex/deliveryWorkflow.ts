@@ -8,6 +8,7 @@ import { requireRole } from "./lib/authz";
 import { toServiceDate } from "./lib/dates";
 import { sha256Hex } from "./lib/hmac";
 import { normaliseDish } from "./lib/dishInsights";
+import { DEFAULT_PORTION_GRAMS, portionsFromKg } from "./lib/portions";
 import { mintConfirmCode } from "./lib/supply";
 import {
   accessDelivery,
@@ -15,7 +16,6 @@ import {
   checkPortions,
   CODE_COOLDOWN_MS,
   operation,
-  PHOTO_MODEL,
   receiptStatus,
   requestKey,
   requireOpenReceipt,
@@ -23,6 +23,7 @@ import {
   timeline,
 } from "./lib/deliveryWorkflow";
 import { notifyDelivery } from "./deliveryNotifications";
+import { readNumberSetting, SettingKey } from "./settings";
 
 const attemptLimiter = new RateLimiter(components.rateLimiter, {
   receiptFailures: { kind: "fixed window", rate: 5, period: ARRIVAL_MS },
@@ -30,7 +31,10 @@ const attemptLimiter = new RateLimiter(components.rateLimiter, {
 
 export const dispatchArgs = {
   schoolId: v.id("schools"),
-  portions: v.number(),
+  // Suppliers send containers + net kg; portions is the legacy direct count.
+  portions: v.optional(v.number()),
+  containers: v.optional(v.number()),
+  netKg: v.optional(v.number()),
   vehicle: v.string(),
   docketRef: v.optional(v.string()),
   requestId: v.string(),
@@ -41,14 +45,27 @@ export async function dispatchDelivery(
   actor: Doc<"users">,
   args: {
     schoolId: Id<"schools">;
-    portions: number;
+    portions?: number;
+    containers?: number;
+    netKg?: number;
     vehicle: string;
     docketRef?: string;
     requestId: string;
     dish: string;
   },
 ) {
-  checkPortions(args.portions, false);
+  const byWeight = args.netKg !== undefined;
+  if (byWeight) {
+    if (!Number.isSafeInteger(args.containers) || args.containers! < 1 || args.containers! > 1000)
+      throw new ConvexError("Enter a whole number of containers between 1 and 1,000.");
+    if (!Number.isFinite(args.netKg) || args.netKg! <= 0 || args.netKg! > 100_000)
+      throw new ConvexError("Enter the net food weight in kg, above 0.");
+  }
+  // ponytail: one serving size for every dish; per-dish grams when dishes differ enough to skew pay.
+  const portions = byWeight
+    ? portionsFromKg(args.netKg!, await readNumberSetting(ctx, SettingKey.PortionGrams, DEFAULT_PORTION_GRAMS))
+    : (args.portions ?? 0);
+  checkPortions(portions, false);
   const vehicle = textField(args.vehicle, "Vehicle", 100);
   // Optional: the supplier's own paper docket number, when they keep one.
   const supplierDocket = args.docketRef?.trim() ? textField(args.docketRef, "Docket reference", 100) : "";
@@ -62,7 +79,7 @@ export async function dispatchDelivery(
     throw new ConvexError("Choose a dish from the active menu.");
   const key = requestKey(actor._id, args.requestId);
   const fingerprint = await sha256Hex(
-    JSON.stringify([args.schoolId, args.portions, vehicle, supplierDocket, dish]),
+    JSON.stringify([args.schoolId, portions, args.containers, args.netKg, vehicle, supplierDocket, dish]),
   );
   const previous = await ctx.db
     .query("deliveries")
@@ -76,6 +93,7 @@ export async function dispatchDelivery(
     return {
       deliveryId: previous._id,
       reference: previous.reference!,
+      portions: previous.portions,
       expectedArrivalAt: previous.expectedArrivalAt!,
     };
   }
@@ -83,7 +101,7 @@ export async function dispatchDelivery(
   if (actor.role === "admin") {
     const suppliers = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("role"), "supplier"))
+      .withIndex("by_role", (q) => q.eq("role", "supplier"))
       .take(2);
     if (suppliers.length !== 1)
       throw new ConvexError(
@@ -105,7 +123,8 @@ export async function dispatchDelivery(
   const deliveryId = await ctx.db.insert("deliveries", {
     schoolId: args.schoolId,
     serviceDate,
-    portions: args.portions,
+    portions,
+    ...(byWeight && { containers: args.containers, netKg: args.netKg }),
     vehicle,
     docketRef,
     reference,
@@ -126,7 +145,7 @@ export async function dispatchDelivery(
     ctx,
     deliveryId,
     "dispatched",
-    `${args.portions} portions of ${dish} dispatched. Vehicle ${vehicle}${supplierDocket ? `; docket ${supplierDocket}` : ""}.`,
+    `${portions} portions${byWeight ? ` (${args.containers} containers, ${args.netKg} kg)` : ""} of ${dish} dispatched. Vehicle ${vehicle}${supplierDocket ? `; docket ${supplierDocket}` : ""}.`,
     actor._id,
   );
   const deadline = new Date(now + ARRIVAL_MS).toLocaleTimeString("en-GB", {
@@ -138,14 +157,14 @@ export async function dispatchDelivery(
     ctx,
     delivery,
     "dispatched",
-    `${school.name}: ${args.portions} portions incoming. Reference ${reference}. Expected by ${deadline} EAT. Confirm receipt in Dishi.`,
+    `${school.name}: ${portions} portions${byWeight ? ` in ${args.containers} containers` : ""} incoming. Reference ${reference}. Expected by ${deadline} EAT. Confirm receipt in Dishi.`,
   );
   await ctx.scheduler.runAt(
     now + ARRIVAL_MS,
     internal.deliveryWorkflow.markOverdue,
     { deliveryId },
   );
-  return { deliveryId, reference, expectedArrivalAt: now + ARRIVAL_MS };
+  return { deliveryId, reference, portions, expectedArrivalAt: now + ARRIVAL_MS };
 }
 export const dispatch = mutation({
   args: dispatchArgs,
@@ -159,8 +178,6 @@ async function finishReceipt(
   actor: Doc<"users">,
   portions: number,
   problem: string,
-  method: "photo" | "code",
-  evidenceId?: Id<"deliveryEvidence">,
 ) {
   const now = Date.now();
   const status = receiptStatus(delivery, portions, problem);
@@ -170,22 +187,12 @@ async function finishReceipt(
     note: problem || undefined,
     receiptRecordedAt: delivery.receiptRecordedAt ?? now,
     receiptConfirmedAt: now,
-    receiptBy: method === "photo" ? actor._id : delivery.receiptBy,
-    receiptMethod: method,
-    evidenceId,
-    missingEvidence: !evidenceId,
+    receiptMethod: "code",
     status,
     resolvedBy: actor._id,
     resolvedAt: now,
-    reviewRequired: status === "disputed" || !evidenceId,
-    ...(evidenceId
-      ? {
-          photoReview: "pending" as const,
-          photoGeneration: 1,
-          photoAttempts: 0,
-          photoModel: PHOTO_MODEL,
-        }
-      : {}),
+    // The supplier entering the school's code is the confirmation.
+    reviewRequired: status === "disputed",
   });
   const code = await ctx.db
     .query("receiptCodes")
@@ -196,15 +203,20 @@ async function finishReceipt(
     ctx,
     delivery._id,
     `receipt.${status}`,
-    `${portions} received via ${method}.${problem ? ` Problem: ${problem}` : ""}`,
+    `${portions} received via code.${problem ? ` Problem: ${problem}` : ""}`,
     actor._id,
   );
-  if (evidenceId)
-    await ctx.scheduler.runAfter(0, internal.deliveryAssessment.assess, {
-      deliveryId: delivery._id,
-      generation: 1,
-      attempt: 0,
-    });
+  await notifyDelivery(
+    ctx,
+    delivery,
+    `receipt.${status}`,
+    status === "disputed"
+      ? `Delivery ${delivery.reference} disputed: ${portions} of ${delivery.portions} portions received.${problem ? ` Problem: ${problem.slice(0, 80)}` : ""} Admin review needed.`
+      : `Delivery ${delivery.reference} confirmed: ${portions} of ${delivery.portions} portions received.`,
+    status === "disputed"
+      ? ["school", "supplier", "admin"]
+      : ["school", "supplier"],
+  );
   await ctx.scheduler.runAfter(0, internal.deliveries.reconcilePageFor, {
     schoolId: delivery.schoolId,
     serviceDate: delivery.serviceDate,
@@ -219,53 +231,6 @@ const receiptArgs = {
   problem: v.string(),
   requestId: v.string(),
 };
-export const submitReceipt = mutation({
-  args: { ...receiptArgs, evidenceId: v.id("deliveryEvidence") },
-  handler: async (ctx, args) => {
-    const { actor, delivery } = await accessDelivery(
-      ctx,
-      args.deliveryId,
-      "school",
-    );
-    const op = await operation(ctx, actor._id, args.requestId, [
-      "receipt",
-      args.deliveryId,
-      args.portionsReceived,
-      args.problem,
-      args.evidenceId,
-    ]);
-    if (op.previous) return { status: op.previous.status };
-    requireOpenReceipt(delivery);
-    checkPortions(args.portionsReceived);
-    if (args.problem.length > 500)
-      throw new ConvexError("Keep the problem description to 500 characters.");
-    const evidence = await ctx.db.get(args.evidenceId);
-    if (
-      !evidence ||
-      evidence.deliveryId !== delivery._id ||
-      evidence.uploadedBy !== actor._id
-    )
-      throw new ConvexError(
-        "Upload a photo for this delivery using your school account.",
-      );
-    const status = await finishReceipt(
-      ctx,
-      delivery,
-      actor,
-      args.portionsReceived,
-      args.problem.trim(),
-      "photo",
-      args.evidenceId,
-    );
-    await ctx.db.insert("deliveryOperations", {
-      key: op.key,
-      fingerprint: op.fingerprint,
-      deliveryId: delivery._id,
-      status,
-    });
-    return { status };
-  },
-});
 export const requestCode = mutation({
   args: receiptArgs,
   handler: async (ctx, args) => {
@@ -318,14 +283,12 @@ export const requestCode = mutation({
       receiptMethod: "code",
       portionsReceived: args.portionsReceived,
       reportedProblem: args.problem.trim() || undefined,
-      missingEvidence: true,
-      reviewRequired: true,
     });
     await timeline(
       ctx,
       delivery._id,
       "receipt.code_requested",
-      `${args.portionsReceived} received; photo unavailable. Code expires in 30 minutes.`,
+      `${args.portionsReceived} received. Code expires in 30 minutes.`,
       actor._id,
     );
     await ctx.db.insert("deliveryOperations", {
@@ -398,7 +361,6 @@ export const redeemCode = mutation({
         actor,
         entry.portionsReceived,
         entry.problem,
-        "code",
       );
     }
     // Return failures instead of throwing: the attempt and cooldown must commit.
@@ -449,7 +411,7 @@ export const markOverdue = internalMutation({
       delivery,
       "overdue",
       `Delivery ${delivery.reference ?? delivery.docketRef} is overdue: ${delivery.portions} portions. Contact the school and supplier. Late receipt can still be recorded.`,
-      true,
+      ["school", "supplier", "admin"],
     );
     return true;
   },
@@ -511,6 +473,14 @@ export const resolve = mutation({
       reason,
       actor._id,
     );
+    if (args.decision !== "reviewed")
+      await notifyDelivery(
+        ctx,
+        delivery,
+        `admin.${status}`,
+        `Delivery ${delivery.reference} ${status} by administrator: ${reason.slice(0, 100)}`,
+        ["school", "supplier"],
+      );
     await ctx.db.insert("events", {
       eventId: op.key,
       type: "admin.delivery_resolved",

@@ -32,18 +32,20 @@ type PreparedSchool = {
   signingKeyHex: string;
   tagUids: string[];
   windowMinutes: number;
+  portionsReceived: number | null;
 };
 
 // FR-804: the simulator uses a real registered reader so its taps go through
 // the same HMAC gate as hardware. The device secret is derived from the
 // deployment's own signing material, never typed by a human.
 export const prepare = internalMutation({
-  args: { schoolId: v.id("schools") },
+  args: { schoolId: v.id("schools"), serviceDate: v.string() },
   returns: v.object({
     deviceRef: v.string(),
     signingKeyHex: v.string(),
     tagUids: v.array(v.string()),
     windowMinutes: v.number(),
+    portionsReceived: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args): Promise<PreparedSchool> => {
     await requireSchoolScope(ctx, args.schoolId);
@@ -84,7 +86,16 @@ export const prepare = internalMutation({
     const windowMinutes = Number(
       (await readSetting(ctx, SettingKey.ServiceWindowMinutes)) ?? DEFAULT_SERVICE_WINDOW_MINUTES,
     );
-    return { deviceRef, signingKeyHex: device.secretHash, tagUids, windowMinutes };
+    // Children can only eat food that arrived: with a delivery on record the
+    // day's taps are capped at portions received. No delivery = uncapped.
+    const deliveries = await ctx.db
+      .query("deliveries")
+      .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", args.schoolId).eq("serviceDate", args.serviceDate))
+      .collect();
+    const portionsReceived =
+      deliveries.length > 0 ? deliveries.reduce((sum, row) => sum + (row.portionsReceived ?? 0), 0) : null;
+
+    return { deviceRef, signingKeyHex: device.secretHash, tagUids, windowMinutes, portionsReceived };
   },
 });
 
@@ -128,15 +139,23 @@ export const runServiceDay = action({
   }),
   handler: async (ctx, args) => {
     const startedAt = Date.now();
-    const prepared = await ctx.runMutation(internal.simulator.prepare, { schoolId: args.schoolId });
+    const prepared = await ctx.runMutation(internal.simulator.prepare, {
+      schoolId: args.schoolId,
+      serviceDate: args.serviceDate,
+    });
     const isToday = toServiceDate(startedAt) === args.serviceDate;
+    const requestedNoShows = args.noShowCount ?? DEFAULT_NO_SHOW_COUNT;
+    const noShowCount =
+      prepared.portionsReceived === null
+        ? requestedNoShows
+        : Math.max(requestedNoShows, prepared.tagUids.length - prepared.portionsReceived);
     const plan = planServiceDay({
       tagUids: prepared.tagUids,
       seed: args.seed,
       serviceDate: args.serviceDate,
       windowStart: isToday ? startedAt : serviceStartFor(args.serviceDate),
       windowMinutes: prepared.windowMinutes,
-      noShowCount: args.noShowCount ?? DEFAULT_NO_SHOW_COUNT,
+      noShowCount,
       batchSize: args.batchSize ?? DEFAULT_BATCH_SIZE,
     });
 

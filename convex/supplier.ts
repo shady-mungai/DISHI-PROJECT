@@ -11,6 +11,7 @@ import { schoolMealOutcomes, tasteThresholds } from "./taste";
 import { forecastAccuracy, type ForecastAccuracy } from "./lib/monitor";
 import { deliveryStatus } from "./schema";
 import { readNumberSetting, SettingKey } from "./settings";
+import { DEFAULT_PORTION_GRAMS } from "./lib/portions";
 
 const SUPPLIER_ROLES = ["supplier", "county", "admin"] as const;
 const MAX_SCHOOLS = 100;
@@ -317,5 +318,15 @@ export const setMenuItemActive = mutation({
     await requireRole(ctx, MENU_EDITORS);
     await ctx.db.patch(args.menuItemId, { active: args.active });
     return null;
+  },
+});
+
+// Serving size for the dispatch calculator; same setting the dispatch mutation uses.
+export const portionGrams = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    await requireRole(ctx, SUPPLIER_ROLES);
+    return await readNumberSetting(ctx, SettingKey.PortionGrams, DEFAULT_PORTION_GRAMS);
   },
 });

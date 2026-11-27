@@ -3,6 +3,7 @@ import { internalMutation } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { settingValue } from "./schema";
 import type { Infer } from "convex/values";
+import { DEFAULT_PORTION_GRAMS } from "./lib/portions";
 
 export type SettingValue = Infer<typeof settingValue>;
 
@@ -31,6 +32,7 @@ export const SettingKey = {
   SmsCostPerSegmentKes: "smsCostPerSegmentKes",
   DeliveryConfirmWindowMinutes: "deliveryConfirmWindowMinutes",
   SupplierPortionRateKes: "supplierPortionRateKes",
+  PortionGrams: "portionGrams",
   ReaderSilentHours: "readerSilentHours",
   DeliveryMaxAttempts: "deliveryMaxAttempts",
   DeliveryRetryBaseSeconds: "deliveryRetryBaseSeconds",
@@ -162,6 +164,11 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     key: SettingKey.SupplierPortionRateKes,
     value: 25,
     description: "Amount paid to the supplier per confirmed portion",
+  },
+  {
+    key: SettingKey.PortionGrams,
+    value: DEFAULT_PORTION_GRAMS,
+    description: "Cooked grams in one pupil portion; dispatch converts net kg to portions with it",
   },
   {
     key: SettingKey.ReaderSilentHours,

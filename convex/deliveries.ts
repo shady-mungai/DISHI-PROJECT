@@ -409,7 +409,12 @@ async function finaliseReconciliation(ctx: MutationCtx, args: ReconcileArgs): Pr
     schoolId: args.schoolId,
     serviceDate: args.serviceDate,
   });
-  await flagIntegrity(ctx, { schoolId: args.schoolId, serviceDate: args.serviceDate });
+  await flagIntegrity(ctx, {
+    schoolId: args.schoolId,
+    serviceDate: args.serviceDate,
+    consumed: totals.consumed,
+    received: deliveries.length > 0 ? received : null,
+  });
   return { status: "computed", ...totals };
 }
 
