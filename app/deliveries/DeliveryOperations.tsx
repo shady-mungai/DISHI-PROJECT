@@ -5,8 +5,6 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/app/auth-client";
-import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { portionsFromKg } from "@/convex/lib/portions";
 import {
@@ -71,19 +69,6 @@ function useRequestId() {
       ref.current = { payload: value, id: crypto.randomUUID() };
     return ref.current.id;
   };
-}
-async function photoFetch(query: string, init?: RequestInit) {
-  const { data } = await authClient.convex.token({
-    fetchOptions: { throw: false },
-  });
-  if (!data?.token) throw new Error("Sign in again to access delivery photos.");
-  const headers = new Headers(init?.headers);
-  headers.set("Authorization", `Bearer ${data.token}`);
-  return await fetch(`${convexSiteUrl}/delivery-photo${query}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
 }
 
 export function SupplierDispatch() {
@@ -286,26 +271,18 @@ function PortionCalculator({
 }
 
 function ReceiptForm({ delivery }: { delivery: Delivery }) {
-  const notify = useContext(DeliveryNotice);
-  const submit = useMutation(api.deliveryWorkflow.submitReceipt);
   const requestCode = useMutation(api.deliveryWorkflow.requestCode);
   const task = useTask();
-  const key = useRequestId();
-  const uploadId = useRef("");
   const [portions, setPortions] = useState(
     delivery.portionsReceived?.toString() ?? "",
   );
   const [problem, setProblem] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [evidenceId, setEvidence] = useState<Id<"deliveryEvidence"> | null>(
-    null,
-  );
   const [fallback, setFallback] = useState<{
     code: string | null;
     expiresAt: number;
   } | null>(null);
   const [reportProblem, setReportProblem] = useState(false);
-  async function record(byCode: boolean) {
+  async function record() {
     if (
       !portions ||
       !Number.isSafeInteger(Number(portions)) ||
@@ -321,65 +298,19 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
       portionsReceived: Number(portions),
       problem: reportProblem ? problem.trim() : "",
     };
-    if (byCode) {
-      const result = await requestCode({
-        ...input,
-        requestId: crypto.randomUUID(),
-      });
-      setFallback(result);
-      return "Quantities recorded. Give this single-use code to the supplier. A new code replaces the previous code.";
-    }
-    let evidence = evidenceId;
-    if (!evidence) {
-      if (!file)
-        throw new Error("Choose a delivery photo first.");
-      if (
-        file.size > 10 * 1024 * 1024 ||
-        !["image/jpeg", "image/png", "image/webp"].includes(file.type)
-      )
-        throw new Error(
-          "Choose a JPEG, PNG or WebP photo no larger than 10 MB.",
-        );
-      if (!uploadId.current) uploadId.current = crypto.randomUUID();
-      const response = await photoFetch("", {
-        method: "POST",
-        headers: {
-          "Content-Type": file.type,
-          "X-Delivery-Id": delivery._id,
-          "X-Request-Id": uploadId.current,
-        },
-        body: file,
-      });
-      const body = (await response.json()) as {
-        error?: string;
-        evidenceId?: Id<"deliveryEvidence">;
-      };
-      if (!response.ok || !body.evidenceId)
-        throw new Error(
-          body.error ??
-            "Upload failed. Retry with the same photo or use a receipt code.",
-        );
-      evidence = body.evidenceId;
-      setEvidence(evidence);
-    }
-    const result = await submit({
+    const result = await requestCode({
       ...input,
-      evidenceId: evidence,
-      requestId: key({ ...input, evidence }),
+      requestId: crypto.randomUUID(),
     });
-    const message =
-      result.status === "confirmed"
-        ? "Delivery confirmed by photo. Central admin will check the photo."
-        : "Receipt recorded. Central admin will resolve the discrepancy or reported problem.";
-    notify?.(message);
-    return message;
+    setFallback(result);
+    return "Quantities recorded. Give this single-use code to the supplier. A new code replaces the previous code.";
   }
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void task.run(() => record(true));
+        void task.run(() => record());
       }}
     >
       <h3 className={SECTION_TITLE_CLASS}>Record receipt</h3>
@@ -438,37 +369,6 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
           </p>
         </div>
       )}
-      <div className="flex flex-col gap-2 border-t border-green/30 pt-3">
-        <p>Supplier unable to enter the code? Confirm with a photo instead.</p>
-        <label className="flex min-w-0 flex-col gap-1">
-          Receipt photo
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null);
-              setEvidence(null);
-              uploadId.current = "";
-            }}
-            className={`${INPUT_CLASS} w-full min-w-0`}
-            aria-describedby={`photo-help-${delivery._id}`}
-          />
-        </label>
-        <p id={`photo-help-${delivery._id}`} className={MUTED_CLASS}>
-          JPEG, PNG or WebP, up to 10 MB. Photograph the delivered food. Avoid
-          including children or personal documents. Central admin reviews
-          photo-only confirmations.
-        </p>
-        <button
-          type="button"
-          disabled={task.busy}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() => void task.run(() => record(false))}
-        >
-          Confirm with photo
-        </button>
-      </div>
     </form>
   );
 }
@@ -513,48 +413,6 @@ function RedeemForm({ delivery }: { delivery: Delivery }) {
     </form>
   );
 }
-function PrivatePhoto({ id }: { id: Id<"deliveryEvidence"> }) {
-  const [url, setUrl] = useState("");
-  const task = useTask();
-  useEffect(
-    () => () => {
-      if (url) URL.revokeObjectURL(url);
-    },
-    [url],
-  );
-  return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        disabled={task.busy}
-        className={SECONDARY_BUTTON_CLASS}
-        onClick={() =>
-          void task.run(async () => {
-            const response = await photoFetch(`?id=${encodeURIComponent(id)}`);
-            if (!response.ok)
-              throw new Error("Photo could not be loaded. Try again.");
-            setUrl(URL.createObjectURL(await response.blob()));
-            return "Photo loaded.";
-          })
-        }
-      >
-        View receipt photo
-      </button>
-      <Feedback task={task} />
-      {url && (
-        // Private authenticated blob URLs must stay in this browser.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt="Food photographed by the receiving school"
-          width={640}
-          height={480}
-          className="max-h-96 w-full rounded-control object-contain"
-        />
-      )}
-    </div>
-  );
-}
 function AdminDecision({ delivery }: { delivery: Delivery }) {
   const notify = useContext(DeliveryNotice);
   const resolve = useMutation(api.deliveryWorkflow.resolve);
@@ -590,7 +448,7 @@ function AdminDecision({ delivery }: { delivery: Delivery }) {
           onChange={(e) => setDecision(e.target.value as typeof decision)}
         >
           <option value="reviewed">
-            Close evidence review; keep delivery status
+            Close review; keep delivery status
           </option>
           <option value="confirm">Confirm received portions</option>
           <option value="dispute">Keep delivery disputed</option>
@@ -635,9 +493,6 @@ function DeliveryDetail({
           Historical delivery: the school can use its original confirmation code
           in the historical confirmation form.
         </p>
-      )}
-      {delivery.evidenceId && role !== "county" && (
-        <PrivatePhoto id={delivery.evidenceId} />
       )}
       {delivery.reportedProblem && (
         <p className={ALERT_CLASS}>
@@ -975,7 +830,7 @@ export function AdminDeliveryReview() {
         {notice && <p role="status">{notice}</p>}
         <h2 className={SECTION_TITLE_CLASS}>Delivery resolution queue</h2>
         <p>
-          Overdue deliveries, quantity disputes and photo-only confirmations.
+          Overdue deliveries and quantity disputes.
         </p>
         {result.status === "LoadingFirstPage" && (
           <p role="status">Loading review queue…</p>

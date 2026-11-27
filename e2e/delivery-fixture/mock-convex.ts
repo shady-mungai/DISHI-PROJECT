@@ -19,7 +19,6 @@ export const row = {
   serviceDate: "2026-11-04",
   dispatchedAt: Date.now(),
   expectedArrivalAt: Date.now() + 1800000,
-  missingEvidence: false,
 };
 function subscribe(fn: () => void) {
   listeners.add(fn);
@@ -89,14 +88,6 @@ export function useMutation(ref: FunctionReference<"mutation">) {
         reference: row.reference,
         expectedArrivalAt: row.expectedArrivalAt,
       };
-    if (name === "deliveryWorkflow:submitReceipt") {
-      row.status =
-        args.portionsReceived === row.portions && !args.problem
-          ? "confirmed"
-          : "disputed";
-      row.portionsReceived = Number(args.portionsReceived);
-      result = { status: row.status };
-    }
     if (name === "deliveryWorkflow:requestCode") {
       row.portionsReceived = Number(args.portionsReceived);
       result = { code: "123456", expiresAt: Date.now() + 1800000 };

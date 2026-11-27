@@ -173,8 +173,6 @@ async function finishReceipt(
   actor: Doc<"users">,
   portions: number,
   problem: string,
-  method: "photo" | "code",
-  evidenceId?: Id<"deliveryEvidence">,
 ) {
   const now = Date.now();
   const status = receiptStatus(delivery, portions, problem);
@@ -184,16 +182,12 @@ async function finishReceipt(
     note: problem || undefined,
     receiptRecordedAt: delivery.receiptRecordedAt ?? now,
     receiptConfirmedAt: now,
-    receiptBy: method === "photo" ? actor._id : delivery.receiptBy,
-    receiptMethod: method,
-    evidenceId,
-    missingEvidence: false,
+    receiptMethod: "code",
     status,
     resolvedBy: actor._id,
     resolvedAt: now,
-    // The supplier entering the school's code is the confirmation; a photo
-    // alone is one-sided, so a person checks it.
-    reviewRequired: status === "disputed" || method === "photo",
+    // The supplier entering the school's code is the confirmation.
+    reviewRequired: status === "disputed",
   });
   const code = await ctx.db
     .query("receiptCodes")
@@ -204,7 +198,7 @@ async function finishReceipt(
     ctx,
     delivery._id,
     `receipt.${status}`,
-    `${portions} received via ${method}.${problem ? ` Problem: ${problem}` : ""}`,
+    `${portions} received via code.${problem ? ` Problem: ${problem}` : ""}`,
     actor._id,
   );
   await notifyDelivery(
@@ -232,53 +226,6 @@ const receiptArgs = {
   problem: v.string(),
   requestId: v.string(),
 };
-export const submitReceipt = mutation({
-  args: { ...receiptArgs, evidenceId: v.id("deliveryEvidence") },
-  handler: async (ctx, args) => {
-    const { actor, delivery } = await accessDelivery(
-      ctx,
-      args.deliveryId,
-      "school",
-    );
-    const op = await operation(ctx, actor._id, args.requestId, [
-      "receipt",
-      args.deliveryId,
-      args.portionsReceived,
-      args.problem,
-      args.evidenceId,
-    ]);
-    if (op.previous) return { status: op.previous.status };
-    requireOpenReceipt(delivery);
-    checkPortions(args.portionsReceived);
-    if (args.problem.length > 500)
-      throw new ConvexError("Keep the problem description to 500 characters.");
-    const evidence = await ctx.db.get(args.evidenceId);
-    if (
-      !evidence ||
-      evidence.deliveryId !== delivery._id ||
-      evidence.uploadedBy !== actor._id
-    )
-      throw new ConvexError(
-        "Upload a photo for this delivery using your school account.",
-      );
-    const status = await finishReceipt(
-      ctx,
-      delivery,
-      actor,
-      args.portionsReceived,
-      args.problem.trim(),
-      "photo",
-      args.evidenceId,
-    );
-    await ctx.db.insert("deliveryOperations", {
-      key: op.key,
-      fingerprint: op.fingerprint,
-      deliveryId: delivery._id,
-      status,
-    });
-    return { status };
-  },
-});
 export const requestCode = mutation({
   args: receiptArgs,
   handler: async (ctx, args) => {
@@ -409,7 +356,6 @@ export const redeemCode = mutation({
         actor,
         entry.portionsReceived,
         entry.problem,
-        "code",
       );
     }
     // Return failures instead of throwing: the attempt and cooldown must commit.

@@ -7,12 +7,7 @@ import { bodyToRecord, parseDeliveryReport } from "./lib/deliveryReport";
 import { MAX_INGEST_BATCH_EVENTS, parseIngestBody } from "./ingest";
 import { parseUssdRequest } from "./lib/ussd";
 
-import { upload as uploadDeliveryPhoto, read as readDeliveryPhoto, PHOTO_HEADERS } from "./deliveryPhotos";
-
 const http = httpRouter();
-http.route({ path: "/delivery-photo", method: "POST", handler: uploadDeliveryPhoto });
-http.route({ path: "/delivery-photo", method: "GET", handler: readDeliveryPhoto });
-http.route({ path: "/delivery-photo", method: "OPTIONS", handler: httpAction(async () => new Response(null, { status: 204, headers: PHOTO_HEADERS })) });
 
 authComponent.registerRoutes(http, createAuth);
 

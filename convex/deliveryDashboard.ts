@@ -29,8 +29,6 @@ export function publicDelivery(row: Doc<"deliveries">) {
     receiptMethod: row.receiptMethod,
     reportedProblem: row.reportedProblem,
     note: row.note,
-    evidenceId: row.evidenceId,
-    missingEvidence: row.missingEvidence,
     reviewRequired: row.reviewRequired,
     reviewResolvedAt: row.reviewResolvedAt,
   };

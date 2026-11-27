@@ -81,37 +81,17 @@ async function dispatch(w: World, requestId = crypto.randomUUID()) {
     requestId,
   });
 }
-const png = () =>
-  new Uint8Array([
-    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0,
-    0, 0, 1,
-  ]);
-async function photo(w: World, deliveryId: Id<"deliveries">) {
-  const response = await w.school.client.fetch("/delivery-photo", {
-    method: "POST",
-    headers: {
-      "Content-Type": "image/png",
-      "X-Delivery-Id": deliveryId,
-      "X-Request-Id": crypto.randomUUID(),
-    },
-    body: png(),
-  });
-  expect(response.status).toBe(200);
-  return ((await response.json()) as { evidenceId: Id<"deliveryEvidence"> })
-    .evidenceId;
-}
 async function receipt(w: World, portionsReceived = 40, problem = "") {
   const { deliveryId } = await dispatch(w);
-  const evidenceId = await photo(w, deliveryId);
-  const args = {
+  const issued = await w.school.client.mutation(api.deliveryWorkflow.requestCode, {
     deliveryId,
-    evidenceId,
     portionsReceived,
     problem,
     requestId: crypto.randomUUID(),
-  };
-  await w.school.client.mutation(api.deliveryWorkflow.submitReceipt, args);
-  return { deliveryId, evidenceId, args };
+  });
+  const redeemArgs = { deliveryId, code: issued.code!, requestId: crypto.randomUUID() };
+  await w.supplier.client.mutation(api.deliveryWorkflow.redeemCode, redeemArgs);
+  return { deliveryId, redeemArgs };
 }
 async function code(
   w: World,
@@ -181,19 +161,19 @@ describe("school-confirmed delivery workflow", () => {
       }),
     ).rejects.toThrow("different details");
   });
-  test("matching photo receipt confirms immediately, idempotently, and queues admin review", async () => {
+  test("matching code receipt confirms immediately and idempotently, without admin review", async () => {
     const w = await world();
     const r = await receipt(w);
     expect(
-      await w.school.client.mutation(
-        api.deliveryWorkflow.submitReceipt,
-        r.args,
+      await w.supplier.client.mutation(
+        api.deliveryWorkflow.redeemCode,
+        r.redeemArgs,
       ),
     ).toEqual({ status: "confirmed" });
     expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
       status: "confirmed",
-      reviewRequired: true,
-      receiptMethod: "photo",
+      reviewRequired: false,
+      receiptMethod: "code",
       portionsReceived: 40,
     });
     expect(
@@ -274,7 +254,6 @@ describe("school-confirmed delivery workflow", () => {
     expect(await w.t.run((ctx) => ctx.db.get(deliveryId))).toMatchObject({
       status: "confirmed",
       receiptMethod: "code",
-      missingEvidence: false,
       reviewRequired: false,
     });
     expect(
@@ -313,7 +292,7 @@ describe("school-confirmed delivery workflow", () => {
       status: "confirmed",
     });
   });
-  test("expired codes cannot confirm, while a new code and late photo receipt remain possible", async () => {
+  test("expired codes cannot confirm, while a new code remains possible", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
     const issued = await code(w, deliveryId);
@@ -324,16 +303,10 @@ describe("school-confirmed delivery workflow", () => {
     expect(
       await w.t.mutation(internal.deliveryWorkflow.markOverdue, { deliveryId }),
     ).toBe(false);
-    const evidenceId = await photo(w, deliveryId);
-    expect(
-      await w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-        deliveryId,
-        evidenceId,
-        portionsReceived: 40,
-        problem: "",
-        requestId: crypto.randomUUID(),
-      }),
-    ).toEqual({ status: "confirmed" });
+    const replacement = await code(w, deliveryId);
+    expect(await redeem(w, deliveryId, replacement.code!)).toEqual({
+      status: "confirmed",
+    });
   });
   test("overdue escalation fires once to school, supplier and admin; late receipts still confirm", async () => {
     const w = await world();
@@ -360,30 +333,19 @@ describe("school-confirmed delivery workflow", () => {
   test("concurrent confirmations cannot overwrite school quantities", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
-    const evidenceId = await photo(w, deliveryId);
-    const args = {
-      deliveryId,
-      evidenceId,
-      portionsReceived: 40,
-      problem: "",
-      requestId: crypto.randomUUID(),
-    };
+    const issued = await code(w, deliveryId);
     const settled = await Promise.allSettled([
-      w.school.client.mutation(api.deliveryWorkflow.submitReceipt, args),
-      w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-        ...args,
-        portionsReceived: 39,
-        requestId: crypto.randomUUID(),
-      }),
+      redeem(w, deliveryId, issued.code!),
+      redeem(w, deliveryId, issued.code!),
     ]);
-    expect(settled.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(settled.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
     expect(
       (
         await w.admin.client.query(api.deliveryDashboard.detail, { deliveryId })
-      ).timeline.filter((e) => e.type.startsWith("receipt.")),
+      ).timeline.filter((e) => e.type === "receipt.confirmed"),
     ).toHaveLength(1);
   });
-  test("school boundaries, supplier ownership, admin reasons and private photo access are enforced", async () => {
+  test("school boundaries, supplier ownership, admin reasons are enforced", async () => {
     const w = await world();
     const r = await receipt(w);
     const stranger = await user(w.t, "supplier");
@@ -415,68 +377,22 @@ describe("school-confirmed delivery workflow", () => {
         requestId: crypto.randomUUID(),
       }),
     ).rejects.toThrow("scope");
-    expect(
-      (await w.other.client.fetch(`/delivery-photo?id=${r.evidenceId}`)).status,
-    ).toBe(403);
-    expect((await w.t.fetch(`/delivery-photo?id=${r.evidenceId}`)).status).toBe(
-      401,
-    );
-    expect(
-      (await w.school.client.fetch(`/delivery-photo?id=${r.evidenceId}`))
-        .status,
-    ).toBe(200);
     const detail = await w.school.client.query(api.deliveryDashboard.detail, {
       deliveryId: r.deliveryId,
     });
     expect(JSON.stringify(detail)).not.toContain("storageId");
     expect(JSON.stringify(detail)).not.toContain("confirmCodeHash");
   });
-  test("upload rejects unrelated owners, wrong types and over-10 MB before storage", async () => {
+  test("photo evidence is gone: no upload route, no photo confirmation", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
-    for (const [contentType, body, status] of [
-      ["image/png", new Uint8Array([1, 2, 3]), 415],
-      ["image/png", new Uint8Array(10 * 1024 * 1024 + 1), 413],
-    ] as const) {
-      const result = await w.school.client.fetch("/delivery-photo", {
-        method: "POST",
-        headers: {
-          "Content-Type": contentType,
-          "X-Delivery-Id": deliveryId,
-          "X-Request-Id": crypto.randomUUID(),
-        },
-        body,
-      });
-      expect(result.status).toBe(status);
-    }
-    const r = await w.other.client.fetch("/delivery-photo", {
+    const response = await w.school.client.fetch("/delivery-photo", {
       method: "POST",
-      headers: {
-        "Content-Type": "image/png",
-        "X-Delivery-Id": deliveryId,
-        "X-Request-Id": crypto.randomUUID(),
-      },
-      body: png(),
+      headers: { "Content-Type": "image/png", "X-Delivery-Id": deliveryId },
+      body: new Uint8Array([137, 80, 78, 71]),
     });
-    expect(r.status).toBe(400);
-    expect(
-      await w.t.run((ctx) => ctx.db.query("deliveryEvidence").collect()),
-    ).toHaveLength(0);
-  });
-  test("photo evidence is bound to its delivery", async () => {
-    const w = await world();
-    const first = await dispatch(w);
-    const second = await dispatch(w);
-    const evidenceId = await photo(w, first.deliveryId);
-    await expect(
-      w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-        deliveryId: second.deliveryId,
-        evidenceId,
-        portionsReceived: 40,
-        problem: "",
-        requestId: crypto.randomUUID(),
-      }),
-    ).rejects.toThrow("Upload a photo");
+    expect(response.status).toBe(404);
+    expect("submitReceipt" in api.deliveryWorkflow).toBe(false);
   });
   test("forecasts distinguish zero from unavailable and non-school days", async () => {
     const w = await world();
@@ -605,11 +521,9 @@ describe("operational SMS", () => {
     let badId: Id<"deliveries">;
     const steps = [
       await step("dispatch", async () => (goodId = (await dispatch(w)).deliveryId)),
-      await step("photo receipt confirmed", async () => {
-        const evidenceId = await photo(w, goodId);
-        await w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
-          deliveryId: goodId, evidenceId, portionsReceived: 40, problem: "", requestId: crypto.randomUUID(),
-        });
+      await step("code receipt confirmed", async () => {
+        const issued = await code(w, goodId);
+        await redeem(w, goodId, issued.code!);
       }),
       await step("dispatch #2", async () => (badId = (await dispatch(w)).deliveryId)),
       await step("code receipt disputed", async () => {
