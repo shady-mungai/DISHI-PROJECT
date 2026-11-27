@@ -6,3 +6,9 @@ export const DEFAULT_PORTION_GRAMS = 350;
 export function portionsFromKg(kg: number, gramsPerPortion: number) {
   return Math.floor(Math.round(kg * 1000) / gramsPerPortion);
 }
+
+// The reverse, for the forecast: net cooked kg to prepare, rounded UP to 0.1 kg
+// so the kitchen never cooks short of the forecast.
+export function kgFromPortions(portions: number, gramsPerPortion: number) {
+  return Math.ceil((portions * gramsPerPortion) / 100) / 10;
+}

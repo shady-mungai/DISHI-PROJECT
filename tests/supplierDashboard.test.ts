@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { internal } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
 import { addDays } from "../convex/lib/dates";
+import { kgFromPortions, portionsFromKg } from "../convex/lib/portions";
 import { forecastAccuracy, runRate } from "../convex/lib/monitor";
 import { checkStalledService } from "../convex/monitor";
 import { supplierOverview } from "../convex/supplier";
@@ -138,4 +139,10 @@ describe("supplier dashboard + intra-day monitor (D13)", () => {
     expect(result.stalled).toHaveLength(1);
     expect(result.stalled[0]).toMatchObject({ schoolCode: "SCH-1", serviceDate: TODAY, tapsSoFar: 2, expectedRunRate: 10, shortfallPct: 80 });
   });
+});
+
+test("forecast portions convert to net kg, rounded up to 0.1 kg", () => {
+  expect(kgFromPortions(100, 350)).toBe(35);
+  expect(kgFromPortions(7, 350)).toBe(2.5); // 2.45 kg → 2.5, never short
+  expect(portionsFromKg(kgFromPortions(123, 350), 350)).toBeGreaterThanOrEqual(123);
 });
