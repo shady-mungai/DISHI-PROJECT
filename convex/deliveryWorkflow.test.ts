@@ -6,11 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
-import {
-  ARRIVAL_MS,
-  CODE_COOLDOWN_MS,
-  PHOTO_MODEL,
-} from "./lib/deliveryWorkflow";
+import { ARRIVAL_MS, CODE_COOLDOWN_MS } from "./lib/deliveryWorkflow";
 import { paymentLines, reconcileDay } from "./deliveries";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -183,7 +179,7 @@ describe("school-confirmed delivery workflow", () => {
       }),
     ).rejects.toThrow("different details");
   });
-  test("matching photo receipt confirms immediately, idempotently, while assessment is pending", async () => {
+  test("matching photo receipt confirms immediately, idempotently, and queues admin review", async () => {
     const w = await world();
     const r = await receipt(w);
     expect(
@@ -194,7 +190,7 @@ describe("school-confirmed delivery workflow", () => {
     ).toEqual({ status: "confirmed" });
     expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
       status: "confirmed",
-      photoReview: "pending",
+      reviewRequired: true,
       receiptMethod: "photo",
       portionsReceived: 40,
     });
@@ -262,7 +258,7 @@ describe("school-confirmed delivery workflow", () => {
       ).toHaveLength(1);
     },
   );
-  test("fallback records receipt, invalidates replaced codes, and retains missing evidence after redemption", async () => {
+  test("code records receipt, invalidates replaced codes, and confirms without review", async () => {
     const w = await world();
     const { deliveryId } = await dispatch(w);
     const first = await code(w, deliveryId);
@@ -274,10 +270,14 @@ describe("school-confirmed delivery workflow", () => {
       status: "confirmed",
     });
     expect(await w.t.run((ctx) => ctx.db.get(deliveryId))).toMatchObject({
+      status: "confirmed",
       receiptMethod: "code",
-      missingEvidence: true,
-      reviewRequired: true,
+      missingEvidence: false,
+      reviewRequired: false,
     });
+    expect(
+      await w.t.run((ctx) => paymentLines(ctx, { from: DAY, to: DAY })),
+    ).toHaveLength(1);
     const stored = await w.t.run((ctx) =>
       ctx.db.query("receiptCodes").unique(),
     );
@@ -518,95 +518,7 @@ describe("school-confirmed delivery workflow", () => {
   });
 });
 
-describe("advisory Groq and operational SMS", () => {
-  test.each([true, false])(
-    "Groq clear=%s does not change confirmation or payment eligibility",
-    async (clear) => {
-      vi.stubEnv("GROQ_API_KEY", "test-key");
-      const w = await world();
-      const r = await receipt(w);
-      const fetchMock = vi.fn<typeof fetch>(async () =>
-        Response.json({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  foodVisible: clear,
-                  clarity: "clear",
-                  unrelatedContent: !clear,
-                  description: "Visible food containers",
-                }),
-              },
-            },
-          ],
-        }),
-      );
-      vi.stubGlobal("fetch", fetchMock);
-      await w.t.action(internal.deliveryAssessment.assess, {
-        deliveryId: r.deliveryId,
-        generation: 1,
-        attempt: 0,
-      });
-      expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
-        status: "confirmed",
-        photoReview: clear ? "clear" : "flagged",
-        photoModel: PHOTO_MODEL,
-      });
-      expect(
-        await w.t.run((ctx) => paymentLines(ctx, { from: DAY, to: DAY })),
-      ).toHaveLength(1);
-      expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).model).toBe(
-        PHOTO_MODEL,
-      );
-    },
-  );
-  test.each(["malformed", "unavailable"])(
-    "%s Groq responses retry three times then allow audited retry",
-    async (failure) => {
-      vi.stubEnv("GROQ_API_KEY", "test-key");
-      const w = await world();
-      const r = await receipt(w);
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async () =>
-          failure === "unavailable"
-            ? new Response("unavailable", { status: 503 })
-            : Response.json({ choices: [{ message: { content: "{}" } }] }),
-        ),
-      );
-      for (let attempt = 0; attempt < 4; attempt++)
-        await w.t.action(internal.deliveryAssessment.assess, {
-          deliveryId: r.deliveryId,
-          generation: 1,
-          attempt,
-        });
-      expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
-        status: "confirmed",
-        photoReview: "failed",
-        photoAttempts: 4,
-        reviewRequired: true,
-      });
-      await w.admin.client.mutation(api.deliveryAssessment.retry, {
-        deliveryId: r.deliveryId,
-        reason: "Provider recovered",
-      });
-      expect(await w.t.run((ctx) => ctx.db.get(r.deliveryId))).toMatchObject({
-        photoReview: "pending",
-        photoGeneration: 2,
-        photoAttempts: 0,
-      });
-      await w.t.mutation(internal.deliveryAssessment.finish, {
-        deliveryId: r.deliveryId,
-        generation: 1,
-        attempt: 4,
-        transient: false,
-        error: "stale",
-      });
-      expect(
-        (await w.t.run((ctx) => ctx.db.get(r.deliveryId)))?.photoReview,
-      ).toBe("pending");
-    },
-  );
+describe("operational SMS", () => {
   test("SMS contacts deduplicate and failed sends remain visible without changing receipt", async () => {
     const w = await world();
     const contact = {

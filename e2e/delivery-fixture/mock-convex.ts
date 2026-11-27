@@ -19,7 +19,6 @@ export const row = {
   serviceDate: "2026-11-04",
   dispatchedAt: Date.now(),
   expectedArrivalAt: Date.now() + 1800000,
-  photoReview: undefined as string | undefined,
   missingEvidence: false,
 };
 function subscribe(fn: () => void) {
@@ -96,12 +95,10 @@ export function useMutation(ref: FunctionReference<"mutation">) {
           ? "confirmed"
           : "disputed";
       row.portionsReceived = Number(args.portionsReceived);
-      row.photoReview = "pending";
       result = { status: row.status };
     }
     if (name === "deliveryWorkflow:requestCode") {
       row.portionsReceived = Number(args.portionsReceived);
-      row.missingEvidence = true;
       result = { code: "123456", expiresAt: Date.now() + 1800000 };
     }
     if (name === "deliveryWorkflow:redeemCode")

@@ -224,7 +224,7 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
     expiresAt: number;
   } | null>(null);
   const [reportProblem, setReportProblem] = useState(false);
-  async function record(fallbackOnly: boolean) {
+  async function record(byCode: boolean) {
     if (
       !portions ||
       !Number.isSafeInteger(Number(portions)) ||
@@ -240,7 +240,7 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
       portionsReceived: Number(portions),
       problem: reportProblem ? problem.trim() : "",
     };
-    if (fallbackOnly) {
+    if (byCode) {
       const result = await requestCode({
         ...input,
         requestId: crypto.randomUUID(),
@@ -251,15 +251,13 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
     let evidence = evidenceId;
     if (!evidence) {
       if (!file)
-        throw new Error(
-          "Choose a delivery photo, or request a receipt code below.",
-        );
+        throw new Error("Choose a delivery photo first.");
       if (
         file.size > 10 * 1024 * 1024 ||
         !["image/jpeg", "image/png", "image/webp"].includes(file.type)
       )
         throw new Error(
-          "Choose a JPEG, PNG or WebP photo no larger than 10 MB. You can request a code if upload is unavailable.",
+          "Choose a JPEG, PNG or WebP photo no larger than 10 MB.",
         );
       if (!uploadId.current) uploadId.current = crypto.randomUUID();
       const response = await photoFetch("", {
@@ -278,7 +276,7 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
       if (!response.ok || !body.evidenceId)
         throw new Error(
           body.error ??
-            "Upload failed. Retry with the same photo or request a receipt code.",
+            "Upload failed. Retry with the same photo or use a receipt code.",
         );
       evidence = body.evidenceId;
       setEvidence(evidence);
@@ -290,7 +288,7 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
     });
     const message =
       result.status === "confirmed"
-        ? "Delivery confirmed. Photo review runs separately."
+        ? "Delivery confirmed by photo. Central admin will check the photo."
         : "Receipt recorded. Central admin will resolve the discrepancy or reported problem.";
     notify?.(message);
     return message;
@@ -300,7 +298,7 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void task.run(() => record(false));
+        void task.run(() => record(true));
       }}
     >
       <h3 className={SECTION_TITLE_CLASS}>Record receipt</h3>
@@ -338,47 +336,15 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
           />
         </label>
       )}
-      <label className="flex min-w-0 flex-col gap-1">
-        Receipt photo
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          capture="environment"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
-            setEvidence(null);
-            uploadId.current = "";
-          }}
-          className={`${INPUT_CLASS} w-full min-w-0`}
-          aria-describedby={`photo-help-${delivery._id}`}
-        />
-      </label>
-      <p id={`photo-help-${delivery._id}`} className={MUTED_CLASS}>
-        JPEG, PNG or WebP, up to 10 MB. Photograph the delivered food. Avoid
-        including children or personal documents.
-      </p>
       <button disabled={task.busy} className={BUTTON_CLASS}>
-        {reportProblem
-          ? "Submit receipt and report problem"
-          : "Confirm received quantities"}
+        {fallback
+          ? "Replace receipt code"
+          : "Record quantities and get receipt code"}
       </button>
       <p className={MUTED_CLASS}>
-        A quantity difference goes to central admin for resolution. Photo
-        assessment does not certify quantity or food safety.
+        Give the code to the supplier. Delivery is confirmed when they enter it.
+        A quantity difference goes to central admin for resolution.
       </p>
-      <div className="border-t border-green/30 pt-3">
-        <p className="mb-2">Photo upload unavailable?</p>
-        <button
-          type="button"
-          disabled={task.busy}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() => void task.run(() => record(true))}
-        >
-          {fallback
-            ? "Replace receipt code"
-            : "Record quantities and request code"}
-        </button>
-      </div>
       <Feedback task={task} />
       {fallback && (
         <div className={PANEL_CLASS}>
@@ -387,11 +353,41 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
           </p>
           <p>
             Expires {receiptTime(fallback.expiresAt)} EAT. The supplier enters
-            it against this delivery. Missing photo evidence remains open for
-            review.
+            it against this delivery.
           </p>
         </div>
       )}
+      <div className="flex flex-col gap-2 border-t border-green/30 pt-3">
+        <p>Supplier unable to enter the code? Confirm with a photo instead.</p>
+        <label className="flex min-w-0 flex-col gap-1">
+          Receipt photo
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setEvidence(null);
+              uploadId.current = "";
+            }}
+            className={`${INPUT_CLASS} w-full min-w-0`}
+            aria-describedby={`photo-help-${delivery._id}`}
+          />
+        </label>
+        <p id={`photo-help-${delivery._id}`} className={MUTED_CLASS}>
+          JPEG, PNG or WebP, up to 10 MB. Photograph the delivered food. Avoid
+          including children or personal documents. Central admin reviews
+          photo-only confirmations.
+        </p>
+        <button
+          type="button"
+          disabled={task.busy}
+          className={SECONDARY_BUTTON_CLASS}
+          onClick={() => void task.run(() => record(false))}
+        >
+          Confirm with photo
+        </button>
+      </div>
     </form>
   );
 }
@@ -481,7 +477,6 @@ function PrivatePhoto({ id }: { id: Id<"deliveryEvidence"> }) {
 function AdminDecision({ delivery }: { delivery: Delivery }) {
   const notify = useContext(DeliveryNotice);
   const resolve = useMutation(api.deliveryWorkflow.resolve);
-  const retry = useMutation(api.deliveryAssessment.retry);
   const task = useTask();
   const key = useRequestId();
   const [reason, setReason] = useState("");
@@ -504,7 +499,7 @@ function AdminDecision({ delivery }: { delivery: Delivery }) {
       <h3 className={SECTION_TITLE_CLASS}>Resolve review</h3>
       <p>
         Confirming makes recorded received portions eligible for the payment
-        file. Photo flags alone never change eligibility.
+        file.
       </p>
       <label className="flex flex-col gap-1">
         Decision
@@ -533,21 +528,6 @@ function AdminDecision({ delivery }: { delivery: Delivery }) {
       <button disabled={task.busy || !reason.trim()} className={BUTTON_CLASS}>
         Record resolution
       </button>
-      {delivery.photoReview === "failed" && (
-        <button
-          type="button"
-          disabled={task.busy || !reason.trim()}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() =>
-            void task.run(async () => {
-              await retry({ deliveryId: delivery._id, reason });
-              return "Photo assessment queued again.";
-            })
-          }
-        >
-          Retry photo assessment
-        </button>
-      )}
       <Feedback task={task} />
     </form>
   );
@@ -583,34 +563,8 @@ function DeliveryDetail({
           Reported problem: {delivery.reportedProblem}
         </p>
       )}
-      {delivery.photoReview && (
-        <div>
-          <p>
-            Photo review: <strong>{delivery.photoReview}</strong> ·{" "}
-            {delivery.photoAttempts ?? 0} attempt(s)
-          </p>
-          <p className={MUTED_CLASS}>
-            {delivery.photoModel}
-            {delivery.photoAssessedAt
-              ? ` · ${receiptTime(delivery.photoAssessedAt)} EAT`
-              : ""}
-          </p>
-          {delivery.photoFindings && (
-            <>
-              <p>{delivery.photoFindings.description}</p>
-              <p>
-                Food visible:{" "}
-                {delivery.photoFindings.foodVisible ? "yes" : "no"}; clarity:{" "}
-                {delivery.photoFindings.clarity}; unrelated content:{" "}
-                {delivery.photoFindings.unrelatedContent ? "yes" : "no"}.
-              </p>
-            </>
-          )}
-          {delivery.photoError && <p>{delivery.photoError}</p>}
-        </div>
-      )}
       {detail?.codeExpiresAt && (
-        <p>Fallback code expires {receiptTime(detail.codeExpiresAt)} EAT.</p>
+        <p>Receipt code expires {receiptTime(detail.codeExpiresAt)} EAT.</p>
       )}
       {detail?.cooldownUntil && (
         <p>
@@ -688,15 +642,6 @@ export function DeliveryCard({
         Dispatched {receiptTime(delivery.dispatchedAt)} · expected by{" "}
         {receiptTime(delivery.expectedArrivalAt)} EAT.
       </p>
-      {delivery.missingEvidence && (
-        <p className={ALERT_CLASS}>
-          Photo evidence missing
-          {delivery.reviewResolvedAt
-            ? " · reviewed by admin"
-            : " · review needed"}
-        </p>
-      )}
-      {delivery.photoReview && <p>Photo assessment: {delivery.photoReview}</p>}
       <button
         type="button"
         aria-expanded={expanded}
@@ -929,8 +874,7 @@ export function AdminDeliveryReview() {
         {notice && <p role="status">{notice}</p>}
         <h2 className={SECTION_TITLE_CLASS}>Delivery resolution queue</h2>
         <p>
-          Overdue deliveries, quantity disputes, missing photos and failed or
-          flagged assessments.
+          Overdue deliveries, quantity disputes and photo-only confirmations.
         </p>
         {result.status === "LoadingFirstPage" && (
           <p role="status">Loading review queue…</p>

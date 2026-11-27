@@ -14,7 +14,6 @@ import {
   checkPortions,
   CODE_COOLDOWN_MS,
   operation,
-  PHOTO_MODEL,
   receiptStatus,
   requestKey,
   requireOpenReceipt,
@@ -71,7 +70,7 @@ export async function dispatchDelivery(
   if (actor.role === "admin") {
     const suppliers = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("role"), "supplier"))
+      .withIndex("by_role", (q) => q.eq("role", "supplier"))
       .take(2);
     if (suppliers.length !== 1)
       throw new ConvexError(
@@ -153,19 +152,13 @@ async function finishReceipt(
     receiptBy: method === "photo" ? actor._id : delivery.receiptBy,
     receiptMethod: method,
     evidenceId,
-    missingEvidence: !evidenceId,
+    missingEvidence: false,
     status,
     resolvedBy: actor._id,
     resolvedAt: now,
-    reviewRequired: status === "disputed" || !evidenceId,
-    ...(evidenceId
-      ? {
-          photoReview: "pending" as const,
-          photoGeneration: 1,
-          photoAttempts: 0,
-          photoModel: PHOTO_MODEL,
-        }
-      : {}),
+    // The supplier entering the school's code is the confirmation; a photo
+    // alone is one-sided, so a person checks it.
+    reviewRequired: status === "disputed" || method === "photo",
   });
   const code = await ctx.db
     .query("receiptCodes")
@@ -179,12 +172,6 @@ async function finishReceipt(
     `${portions} received via ${method}.${problem ? ` Problem: ${problem}` : ""}`,
     actor._id,
   );
-  if (evidenceId)
-    await ctx.scheduler.runAfter(0, internal.deliveryAssessment.assess, {
-      deliveryId: delivery._id,
-      generation: 1,
-      attempt: 0,
-    });
   await ctx.scheduler.runAfter(0, internal.deliveries.reconcilePageFor, {
     schoolId: delivery.schoolId,
     serviceDate: delivery.serviceDate,
@@ -298,14 +285,12 @@ export const requestCode = mutation({
       receiptMethod: "code",
       portionsReceived: args.portionsReceived,
       reportedProblem: args.problem.trim() || undefined,
-      missingEvidence: true,
-      reviewRequired: true,
     });
     await timeline(
       ctx,
       delivery._id,
       "receipt.code_requested",
-      `${args.portionsReceived} received; photo unavailable. Code expires in 30 minutes.`,
+      `${args.portionsReceived} received. Code expires in 30 minutes.`,
       actor._id,
     );
     await ctx.db.insert("deliveryOperations", {

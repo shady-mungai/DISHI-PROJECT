@@ -31,12 +31,6 @@ export function publicDelivery(row: Doc<"deliveries">) {
     missingEvidence: row.missingEvidence,
     reviewRequired: row.reviewRequired,
     reviewResolvedAt: row.reviewResolvedAt,
-    photoReview: row.photoReview,
-    photoModel: row.photoModel,
-    photoFindings: row.photoFindings,
-    photoAssessedAt: row.photoAssessedAt,
-    photoError: row.photoError,
-    photoAttempts: row.photoAttempts,
   };
 }
 async function enrich(ctx: QueryCtx, rows: Doc<"deliveries">[]) {

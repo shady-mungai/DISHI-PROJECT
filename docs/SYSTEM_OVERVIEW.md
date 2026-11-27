@@ -36,7 +36,7 @@ USSD menu, meal expectations and missed-meal detection, wallet mirror, delivery 
 forecasts, reconciliation, payment file, dashboards, admin console, retention.
 
 **Outside the boundary:** the payment system (wallet balances are mirrored, not owned), the
-SMS/USSD gateways, the vision model used to check delivery photos, the NFC hardware itself.
+SMS/USSD gateways, the NFC hardware itself.
 
 ```mermaid
 flowchart LR
@@ -50,7 +50,6 @@ flowchart LR
   Mlo -- send SMS --> SMSGW[SMS gateway: Celcom / Africa's Talking]
   SMSGW -- delivery reports --> Mlo
   USSDGW[Celcom USSD gateway] -- menu callbacks --> Mlo
-  Mlo -- photo check --> Groq[Groq vision API]
   Payer[Payment system] -. top-ups, not yet wired .-> Mlo
 ```
 
@@ -90,7 +89,6 @@ An admin promotes them with `npx convex run users:assignRole`.
 | **Scheduler / crons** | Time | Starts service days, sweeps, forecasts, reconciliation, digest, reader checks, retention |
 | **SMS gateway** (Celcom, Africa's Talking, or `console` stub) | External | Receives outbound SMS; calls back `POST /dlr?token=` with delivery reports |
 | **USSD gateway** (Celcom) | External | Calls `GET /ussd/<token>` on each menu step |
-| **Groq vision API** (`qwen/qwen3.8-27b`) | External AI | Assesses delivery receipt photos (food visible, clarity, unrelated content) |
 | **Payment system** | External (planned) | Would call `POST /wallet?token=`; route is commented out, top-ups currently run via `wallets:applyPayment` from the CLI |
 | **Better Auth** | Embedded component | Email + password sign-in; sessions for web users |
 
@@ -153,7 +151,7 @@ An admin promotes them with `npx convex run users:assignRole`.
 | **Convex backend** | Convex cloud deployment | Database, queries/mutations/actions, scheduler, crons, file storage, HTTP routes (`*.convex.site`) |
 | **Convex components** | `@convex-dev/better-auth`, `@convex-dev/rate-limiter` | Auth tables and sessions; receipt-code attempt limiting |
 | **Phone reader** | Chrome on NFC-capable Android, Web NFC (`NDEFReader`) | Reads tag serial, queues taps, signs and posts batches |
-| **External** | Celcom / Africa's Talking SMS, Celcom USSD, Groq API | Messaging, USSD, photo assessment |
+| **External** | Celcom / Africa's Talking SMS, Celcom USSD | Messaging, USSD |
 
 HTTP routes on Convex (`convex/http.ts`):
 
@@ -193,7 +191,6 @@ flowchart TB
   Fn -- SMS --> SMS[Celcom / Africa's Talking]
   SMS -- DLR --> HTTP
   USSD[Celcom USSD] --> HTTP
-  Fn -- vision --> Groq[Groq API]
 ```
 
 ---
@@ -514,7 +511,6 @@ sequenceDiagram
   actor School as School staff
   participant WF as deliveryWorkflow
   participant Photo as /delivery-photo
-  participant AI as deliveryAssessment (Groq)
   participant N as deliveryNotifications
   actor Admin
 
@@ -522,18 +518,15 @@ sequenceDiagram
   WF->>WF: idempotent on requestKey + fingerprint; status declared; ref DLV-…
   WF->>N: inbox + SMS to school contacts "N portions incoming, expected by HH:MM"
   WF->>WF: schedule markOverdue at +30 min
-  alt receipt with photo
-    School->>Photo: upload JPEG/PNG ≤10 MB (bearer token)
-    School->>WF: submitReceipt(portionsReceived, problem?)
-    WF->>WF: confirmed if portions match and no problem, else disputed (+ review)
-    WF->>AI: assess photo
-    AI->>AI: Groq vision → foodVisible / clarity / unrelatedContent
-    AI->>WF: photoReview clear | flagged | failed (flagged/failed → review required)
-  else no photo possible
+  alt receipt code (primary)
     School->>WF: requestCode(portionsReceived, problem?) → one-time code (30 min)
     School-->>Supplier: reads code to driver
     Supplier->>WF: redeemCode(code) (5 failures per window, then cooldown)
-    WF->>WF: confirmed / disputed, review required
+    WF->>WF: confirmed if portions match and no problem, else disputed (+ review)
+  else supplier cannot enter the code
+    School->>Photo: upload JPEG/PNG ≤10 MB (bearer token)
+    School->>WF: submitReceipt(portionsReceived, problem?)
+    WF->>WF: confirmed / disputed; photo-only receipts always go to admin review
   end
   WF->>WF: schedule reconciliation for the school-day
   opt nobody records receipt by +30 min
@@ -665,18 +658,8 @@ stateDiagram-v2
   disputed --> confirmed: admin resolve
   confirmed --> disputed: admin resolve
 ```
-Parallel flag `reviewRequired` is set for disputes, code receipts, missing evidence, flagged or
-failed photos, and overdue deliveries; cleared by admin resolution.
-
-**Delivery photo review**
-```mermaid
-stateDiagram-v2
-  [*] --> pending: photo receipt submitted
-  pending --> clear: food visible, clear, nothing unrelated
-  pending --> flagged: assessment found a problem
-  pending --> failed: Groq error / not configured
-  failed --> pending: admin/school retry
-```
+Parallel flag `reviewRequired` is set for disputes, photo-only receipts and overdue deliveries;
+cleared by admin resolution. A matching code redemption needs no review.
 
 **Low-balance alert (hysteresis)**
 ```mermaid
@@ -742,7 +725,7 @@ gantt
 | Photos | Auth bearer token, type sniffed from bytes (JPEG/PNG), 10 MB limit |
 | PII | Phone numbers and names masked in logs (`lib/mask.ts`); retention purge and de-identification |
 | Audit | `admin.*` events in the append-only log, excluded from purge |
-| Secrets | Convex env vars only (`BETTER_AUTH_SECRET`, gateway keys, tokens, `GROQ_API_KEY`) |
+| Secrets | Convex env vars only (`BETTER_AUTH_SECRET`, gateway keys, tokens) |
 
 ---
 
