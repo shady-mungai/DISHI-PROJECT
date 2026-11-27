@@ -5,7 +5,6 @@ import { Stat } from "@/app/components/Stat";
 import {
   ERROR_CLASS,
   INPUT_CLASS,
-  MUTED_CLASS,
   ROW_CLASS,
   SECTION_TITLE_CLASS,
   SMALL_BUTTON_CLASS,
@@ -42,34 +41,6 @@ export function MetricsPanel({ from, to }: Range) {
         <Stat label="Rule evaluations" value={metrics?.evaluations} />
         <Stat label="Suppressed" value={metrics?.suppressed} />
       </div>
-    </section>
-  );
-}
-
-// FR-802: the audit trail is the events stream filtered to administrative types.
-export function AuditPanel({ from, to }: Range) {
-  const entries = useQuery(api.admin.audit, { from, to });
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className={SECTION_TITLE_CLASS}>Audit log</h2>
-      {entries?.length === 0 && (
-        <p className={MUTED_CLASS}>No administrative actions in this period.</p>
-      )}
-      <ul className="flex flex-col gap-1 text-sm">
-        {entries?.map((entry) => (
-          <li key={entry._id} className={`${ROW_CLASS} font-sans text-sm`}>
-            <span className="text-ink/80">
-              {new Date(entry.occurredAt).toLocaleString("en-KE", {
-                timeZone: "Africa/Nairobi",
-              })}
-            </span>
-            <span>{entry.type}</span>
-            <span className="flex-1 text-ink/80">
-              {JSON.stringify(entry.payload)}
-            </span>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }

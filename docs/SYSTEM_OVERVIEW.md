@@ -67,7 +67,7 @@ flowchart LR
 | **School staff** (head teacher, cook, patron) | `school` (scoped to one school) | Web workspace `/school/*`, phone reader `/reader` | Run service, override lost tags, confirm deliveries, manage roster and readers |
 | **Supplier** (central kitchen) | `supplier` | Web workspace `/supplier/*`, operational SMS | Forecasts, declare dispatches, redeem receipt codes, reconciliation, forecast accuracy |
 | **County programme officer** | `county` | Web workspace `/county/*` (+ can view school and supplier views) | Variance and integrity exceptions per school, payment file |
-| **System administrator** | `admin` (sees every workspace) | Web `/admin/*` + Convex CLI | Rules, settings, devices, deliverability, audit, delivery dispute resolution, role assignment |
+| **System administrator** | `admin` (sees every workspace) | Web `/admin/*` + Convex CLI | Rules, settings, devices, deliverability, delivery dispute resolution, role assignment |
 
 Role → workspaces visible (`app/components/Workspace.tsx`):
 
@@ -138,8 +138,7 @@ An admin promotes them with `npx convex run users:assignRole`.
 - Dry-run replay a rule against past events before enabling it
 - Change runtime settings (windows, caps, thresholds, SMS channel, retention…)
 - Device fleet health; revoke a device
-- Communications and SMS spend; trace a message end-to-end by correlation id
-- Audit history of admin actions
+- Communications and SMS spend
 - Resolve delivery reviews and disputes; declare dispatch on behalf of the pilot supplier
 - Assign roles (CLI)
 
@@ -221,7 +220,7 @@ flowchart TB
 | Supplier views | `supplier.ts` | Supplier overview and accuracy |
 | USSD | `ussd.ts`, `lib/ussd.ts` | Stateless menu over cumulative input; opt-out toggles; number change |
 | Digest | `digest.ts` | Weekly per-guardian summary event |
-| Admin | `admin.ts` | Rules CRUD, settings, device revoke, audit, metrics, dry-run replay, deliverability, trace |
+| Admin | `admin.ts` | Rules CRUD, settings, device revoke, metrics, dry-run replay, deliverability |
 | Retention | `retention.ts` | Purge old events/notifications, de-identify deactivated pupils |
 | Settings | `settings.ts` | Runtime-tunable key/value config |
 | Simulator | `simulator.ts`, `lib/simulation.ts` | Generates a realistic service day through the real `/ingest` |
@@ -595,10 +594,9 @@ recent events and reports matches and SMS cost (segments × cost per segment) �
 no deploy. `setRuleEnabled`, `setSetting` and `revokeDevice` are audited the same way.
 Revoked devices fail the `/ingest` signature lookup immediately.
 
-### 8.13 Message tracing and deliverability
+### 8.13 Deliverability
 
-`admin:trace(correlationId)` returns the chain: source event → derived events → notifications
-(queued/suppressed/sent/delivered/failed, reason, attempts). `admin:deliverability` and
+`admin:deliverability` and
 `admin:metrics` give delivered %, failures by reason, spend per rule, NFR timings.
 
 ### 8.14 Weekly digest
