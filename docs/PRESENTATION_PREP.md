@@ -137,7 +137,7 @@ For missed meals, explain that pending expectations become missed only after the
 
 Say: “This is an explainable historical forecasting heuristic. It recomputes from recorded outcomes; I did not train a machine-learning demand model.”
 
-**Evaluation:** `/supplier/accuracy` displays mean absolute percentage error and signed bias, both relative to the forecast. Positive bias means over-forecasting. Zero forecasts are excluded from this calculation. Do not call the displayed ± error an accuracy percentage or claim standard actual-denominator MAPE.
+**Evaluation:** `/supplier/accuracy` displays volume-weighted absolute error (WAPE: total |forecast − served| ÷ total served) and signed bias on the same denominator. Positive bias means over-forecasting. A zero forecast on a day pupils ate counts as a full miss; days with nothing forecast and nothing served are skipped. Do not call the displayed ± error an accuracy percentage or claim per-day MAPE.
 
 ### B. Rule-based decisions and exception detection
 

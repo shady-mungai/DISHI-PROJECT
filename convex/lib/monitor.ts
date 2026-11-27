@@ -18,18 +18,22 @@ export type ForecastPair = { forecast: number; actual: number };
 
 export type ForecastAccuracy = { days: number; meanAbsErrorPct: number; biasPct: number };
 
-// SU-08: mean absolute error and signed bias of the forecast against what was
-// eaten, as a share of the forecast. Positive bias = over-forecast.
+// SU-08: volume-weighted absolute error (WAPE) and signed bias of the forecast
+// against what was eaten, as a share of total portions eaten. Weighting by
+// volume stops one tiny forecast from exploding the figure, and a zero
+// forecast on a day pupils ate counts as a full miss instead of vanishing.
+// Positive bias = over-forecast. Days with nothing forecast and nothing eaten
+// carry no signal and are skipped.
 export function forecastAccuracy(pairs: ForecastPair[]): ForecastAccuracy {
-  const scored = pairs.filter((pair) => pair.forecast > 0);
-  if (scored.length === 0) {
+  const scored = pairs.filter((pair) => pair.forecast > 0 || pair.actual > 0);
+  const eaten = scored.reduce((sum, pair) => sum + pair.actual, 0);
+  if (eaten === 0) {
     return { days: 0, meanAbsErrorPct: 0, biasPct: 0 };
   }
-  const errors = scored.map((pair) => (pair.forecast - pair.actual) / pair.forecast);
-  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const total = (error: (pair: ForecastPair) => number) => scored.reduce((sum, pair) => sum + error(pair), 0);
   return {
     days: scored.length,
-    meanAbsErrorPct: Math.round(mean(errors.map(Math.abs)) * PERCENT),
-    biasPct: Math.round(mean(errors) * PERCENT),
+    meanAbsErrorPct: Math.round((total((pair) => Math.abs(pair.forecast - pair.actual)) / eaten) * PERCENT),
+    biasPct: Math.round((total((pair) => pair.forecast - pair.actual) / eaten) * PERCENT),
   };
 }

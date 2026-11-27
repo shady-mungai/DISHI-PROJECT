@@ -85,12 +85,16 @@ async function seedLedger(t: Harness, world: World) {
 }
 
 describe("supplier dashboard + intra-day monitor (D13)", () => {
-  test("run rate is linear across the window and accuracy is mean absolute error with signed bias (FR-607, SU-08)", () => {
+  test("run rate is linear across the window and accuracy is volume-weighted absolute error with signed bias (FR-607, SU-08)", () => {
     expect(runRate({ expected: 20, tapsSoFar: 3, windowStart: WINDOW_START, windowEnd: WINDOW_END, now: MIDPOINT })).toEqual({ expectedSoFar: 10, shortfallPct: 70, elapsedPct: 50 });
     expect(runRate({ expected: 20, tapsSoFar: 12, windowStart: WINDOW_START, windowEnd: WINDOW_END, now: MIDPOINT }).shortfallPct).toBe(0);
     expect(runRate({ expected: 20, tapsSoFar: 0, windowStart: WINDOW_START, windowEnd: WINDOW_END, now: WINDOW_START }).shortfallPct).toBe(0);
-    expect(forecastAccuracy([{ forecast: 20, actual: 16 }, { forecast: 20, actual: 22 }])).toEqual({ days: 2, meanAbsErrorPct: 15, biasPct: 5 });
+    expect(forecastAccuracy([{ forecast: 20, actual: 16 }, { forecast: 20, actual: 22 }])).toEqual({ days: 2, meanAbsErrorPct: 16, biasPct: 5 });
     expect(forecastAccuracy([])).toEqual({ days: 0, meanAbsErrorPct: 0, biasPct: 0 });
+    // One near-zero forecast no longer explodes the figure (per-day % of forecast gave ±1100%).
+    expect(forecastAccuracy([{ forecast: 1, actual: 23 }, { forecast: 38, actual: 38 }])).toEqual({ days: 2, meanAbsErrorPct: 36, biasPct: -36 });
+    // A zero forecast on a day pupils ate is a full miss; a 0/0 day is skipped.
+    expect(forecastAccuracy([{ forecast: 0, actual: 30 }, { forecast: 0, actual: 0 }])).toEqual({ days: 1, meanAbsErrorPct: 100, biasPct: -100 });
   });
 
   test("a school at 30% of its expected rate mid-window is flagged stalled exactly once (FR-607, SU-04)", async () => {
@@ -127,7 +131,7 @@ describe("supplier dashboard + intra-day monitor (D13)", () => {
       [TODAY, 20, 18, 0],
       [YESTERDAY, 20, 16, 20],
     ]);
-    expect(result.accuracy).toEqual([{ schoolId: world.schoolId, schoolCode: "SCH-1", days: 2, meanAbsErrorPct: 15, biasPct: 15 }]);
+    expect(result.accuracy).toEqual([{ schoolId: world.schoolId, schoolCode: "SCH-1", days: 2, meanAbsErrorPct: 18, biasPct: 18 }]);
     expect(result.unconfirmed).toHaveLength(1);
     expect(result.unconfirmed[0]).toMatchObject({ schoolCode: "SCH-1", docketRef: "DK-9", status: "unconfirmed" });
     expect(result.stalled).toHaveLength(1);
