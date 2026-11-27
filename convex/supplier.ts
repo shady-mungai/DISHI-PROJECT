@@ -1,11 +1,13 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { reconciliationsNewestFirst } from "./county";
 import { requireRole } from "./lib/authz";
-import { addDays } from "./lib/dates";
-import { attendanceByWeekday, DEFAULT_MIN_DISH_DAYS, dishInsights, type DishInsight, type InsightDay, type WeekdayAttendance } from "./lib/dishInsights";
+import { addDays, toServiceDate } from "./lib/dates";
+import { attendanceByWeekday, DEFAULT_MIN_DISH_DAYS, dishInsights, MAX_DISH_LENGTH, normaliseDish, rotationOrder, type DishInsight, type InsightDay, type WeekdayAttendance } from "./lib/dishInsights";
+import { tasteReport, type MealOutcome, type TasteVerdict } from "./lib/taste";
+import { schoolMealOutcomes, tasteThresholds } from "./taste";
 import { forecastAccuracy, type ForecastAccuracy } from "./lib/monitor";
 import { deliveryStatus } from "./schema";
 import { readNumberSetting, SettingKey } from "./settings";
@@ -18,8 +20,10 @@ const MAX_UNCONFIRMED = 200;
 const MAX_STALLED = 200;
 const STALLED_EVENT = "service.stalled";
 const MAX_DELIVERIES_IN_RANGE = 2000;
-const MAX_RECENT_DISHES = 50;
-const RECENT_DELIVERIES_SCANNED = 200;
+const MAX_MENU_ITEMS = 200;
+const ROTATION_LOOKBACK_DAYS = 90;
+// ponytail: one pupil-day budget shared across schools; pre-aggregate taste per day if schools x days outgrows it.
+const SUPPLIER_TASTE_PUPIL_DAYS = 10_000;
 
 type DateRange = { from: string; to: string };
 
@@ -155,7 +159,9 @@ export const overview = query({
   },
 });
 
-export type SupplierInsights = { minDays: number; dishes: DishInsight[]; weekdays: WeekdayAttendance[] };
+type SupplierDishInsight = DishInsight & { skipPct: number | null; verdict: TasteVerdict | null };
+
+export type SupplierInsights = { minDays: number; dishes: SupplierDishInsight[]; weekdays: WeekdayAttendance[] };
 
 async function nonFullDays(ctx: QueryCtx, range: DateRange): Promise<Set<string>> {
   const calendar = await ctx.db
@@ -204,11 +210,18 @@ export async function supplierInsights(ctx: QueryCtx, range: DateRange): Promise
   const schools = (await ctx.db.query("schools").take(MAX_SCHOOLS)).filter((school) => school.active);
   const skipped = await nonFullDays(ctx, range);
   const days: InsightDay[] = [];
+  const outcomes: MealOutcome[] = [];
+  const pupilDaysPerSchool = Math.floor(SUPPLIER_TASTE_PUPIL_DAYS / Math.max(1, schools.length));
   for (const school of schools) {
     days.push(...(await schoolInsightDays(ctx, school, range, skipped)));
+    outcomes.push(...(await schoolMealOutcomes(ctx, school._id, range, pupilDaysPerSchool)));
   }
   const minDays = await readNumberSetting(ctx, SettingKey.DishInsightsMinDays, DEFAULT_MIN_DISH_DAYS);
-  const dishes = dishInsights(days, minDays).sort((left, right) => (right.leftoverPct ?? -Infinity) - (left.leftoverPct ?? -Infinity));
+  // The taste engine's per-dish verdict only: class and pupil rows stay with the school.
+  const taste = new Map(tasteReport(outcomes, await tasteThresholds(ctx)).dishes.map((row) => [row.dish, row]));
+  const dishes = dishInsights(days, minDays)
+    .map((row) => ({ ...row, skipPct: taste.get(row.dish)?.skipPct ?? null, verdict: taste.get(row.dish)?.verdict ?? null }))
+    .sort((left, right) => (right.leftoverPct ?? -Infinity) - (left.leftoverPct ?? -Infinity));
   return { minDays, dishes, weekdays: attendanceByWeekday(days) };
 }
 
@@ -227,6 +240,8 @@ export const insights = query({
         leftoverPct: nullableNumber,
         uptakeVsWeekday: nullableNumber,
         leftoverVsWeekday: nullableNumber,
+        skipPct: nullableNumber,
+        verdict: v.union(v.literal("liked"), v.literal("neutral"), v.literal("disliked"), v.null()),
       }),
     ),
     weekdays: v.array(
@@ -248,17 +263,61 @@ export const insights = query({
   },
 });
 
-export const recentDishes = query({
-  args: {},
-  returns: v.array(v.string()),
-  handler: async (ctx) => {
-    const actor = await requireRole(ctx, SUPPLIER_ROLES);
-    const recent = await ctx.db
-      .query("deliveries")
-      .withIndex("by_declaredBy_and_serviceDate", (q) => q.eq("declaredBy", actor._id))
-      .order("desc")
-      .take(RECENT_DELIVERIES_SCANNED);
-    return [...new Set(recent.flatMap((delivery) => (delivery.dish ? [delivery.dish] : [])))].slice(0, MAX_RECENT_DISHES);
+const MENU_EDITORS = ["supplier", "admin"] as const;
+
+// Rotation is per school when one is chosen, else across every school.
+export const menu = query({
+  args: { schoolId: v.optional(v.id("schools")) },
+  returns: v.array(v.object({ _id: v.id("menuItems"), dish: v.string(), active: v.boolean(), lastServed: v.union(v.string(), v.null()), timesServed: v.number() })),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, SUPPLIER_ROLES);
+    const items = await ctx.db.query("menuItems").take(MAX_MENU_ITEMS);
+    const to = toServiceDate(Date.now());
+    const range = { from: addDays(to, -ROTATION_LOOKBACK_DAYS), to };
+    const deliveries = args.schoolId
+      ? await ctx.db
+          .query("deliveries")
+          .withIndex("by_school_serviceDate", (q) => q.eq("schoolId", args.schoolId!).gte("serviceDate", range.from).lte("serviceDate", range.to))
+          .take(MAX_DELIVERIES_IN_RANGE)
+      : await ctx.db
+          .query("deliveries")
+          .withIndex("by_serviceDate", (q) => q.gte("serviceDate", range.from).lte("serviceDate", range.to))
+          .take(MAX_DELIVERIES_IN_RANGE);
+    const served = deliveries.flatMap((delivery) => (delivery.dish ? [{ dish: delivery.dish, serviceDate: delivery.serviceDate }] : []));
+    const byDish = new Map(items.map((item) => [item.dish, item]));
+    return rotationOrder(items.map((item) => item.dish), served).map((entry) => {
+      const item = byDish.get(entry.dish)!;
+      return { _id: item._id, active: item.active, ...entry };
+    });
+  },
+});
+
+export const addMenuItem = mutation({
+  args: { dish: v.string() },
+  returns: v.id("menuItems"),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, MENU_EDITORS);
+    const dish = normaliseDish(args.dish);
+    if (!dish || dish.length > MAX_DISH_LENGTH) throw new ConvexError(`Enter a dish name of 1 to ${MAX_DISH_LENGTH} characters.`);
+    const existing = await ctx.db
+      .query("menuItems")
+      .withIndex("by_dish", (q) => q.eq("dish", dish))
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, { active: true });
+      return existing._id;
+    }
+    return await ctx.db.insert("menuItems", { dish, active: true });
+  },
+});
+
+export const setMenuItemActive = mutation({
+  args: { menuItemId: v.id("menuItems"), active: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireRole(ctx, MENU_EDITORS);
+    await ctx.db.patch(args.menuItemId, { active: args.active });
+    return null;
   },
 });
 

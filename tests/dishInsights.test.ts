@@ -98,6 +98,7 @@ async function seedWorld(t: Harness): Promise<World> {
     await ctx.db.insert("settings", { key: "cutoffOffsetMinutes", value: CUTOFF_OFFSET_MINUTES, description: "test" });
     await ctx.db.insert("academicCalendar", { serviceDate: FRIDAY, isSchoolDay: true, dayType: "full" });
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Pilot Primary", active: true });
+    await ctx.db.insert("menuItems", { dish: "githeri", active: true });
     const studentIds: Id<"students">[] = [];
     for (let index = 0; index < ROSTER; index += 1) {
       const studentId = await ctx.db.insert("students", { schoolId, studentRef: `STU-${index}`, fullName: `Child ${index}`, className: "4A", status: "active" });

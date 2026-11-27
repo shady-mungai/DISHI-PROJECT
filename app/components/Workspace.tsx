@@ -20,6 +20,7 @@ export const destinations = {
   supplier: [
     ["", "Overview"],
     ["/dispatch", "Declare dispatch"],
+    ["/menu", "Menu and rotation"],
     ["/reconciliation", "Reconciliation"],
     ["/accuracy", "Forecast accuracy"],
     ["/insights", "Dish and attendance insights"],

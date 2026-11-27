@@ -11,6 +11,7 @@ test("dispatch by containers and net kg counts portions from the serving size", 
   const { schoolId, supplier } = await t.run(async (ctx) => {
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Pilot Primary", active: true });
     const supplierId = await ctx.db.insert("users", { authUserId: "auth-supplier", displayName: "Kitchen", role: "supplier" });
+    await ctx.db.insert("menuItems", { dish: "githeri", active: true });
     return { schoolId, supplier: (await ctx.db.get(supplierId))! };
   });
   const send = (requestId: string, containers: number, netKg: number) =>

@@ -34,6 +34,7 @@ async function seedWorld(t: Harness): Promise<World> {
     await ctx.db.insert("settings", { key: "stalledServiceThresholdPct", value: STALLED_THRESHOLD_PCT, description: "test" });
     await ctx.db.insert("settings", { key: "serviceWindowMinutes", value: WINDOW_MINUTES, description: "test" });
     await ctx.db.insert("academicCalendar", { serviceDate: TODAY, isSchoolDay: true, dayType: "full" });
+    await ctx.db.insert("settings", { key: "serviceRequiresSupply", value: false, description: "supply gate is covered in supplyGate.test.ts" });
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Pilot Primary", active: true });
     const tagUids: string[] = [];
     for (let index = 0; index < ROSTER; index += 1) {

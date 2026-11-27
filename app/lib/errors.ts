@@ -12,6 +12,7 @@ const FRIENDLY_CODES: Record<string, string> = {
   OUT_OF_SCOPE: "You can only manage your own school's records.",
   student_not_in_school: "This pupil is not on this school's roll.",
   student_inactive: "This pupil has left the school, so this can't be recorded for them.",
+  no_supply: "No food delivery has been received today. Record the supplier's delivery before serving meals.",
   UNKNOWN_SCHOOL: "That school was not found. Choose a school from the list.",
   INVALID_PORTIONS: "Enter the number of portions as a whole number.",
   UNKNOWN_CODE: "That confirmation code is not recognised. Check it and try again.",
@@ -20,6 +21,10 @@ const FRIENDLY_CODES: Record<string, string> = {
   DEVICE_NOT_FOUND: "That reader is no longer registered. Refresh the page.",
   SETTING_NOT_FOUND: "That setting no longer exists. Refresh the page.",
 };
+
+export function codeMessage(code: string): string {
+  return FRIENDLY_CODES[code] ?? code;
+}
 
 function includesAny(text: string, markers: ReadonlyArray<string>): boolean {
   return markers.some((marker) => text.includes(marker));

@@ -22,6 +22,7 @@ export const SettingKey = {
   StalledServiceThresholdPct: "stalledServiceThresholdPct",
   VarianceTolerancePct: "varianceTolerancePct",
   DishInsightsMinDays: "dishInsightsMinDays",
+  ServiceRequiresSupply: "serviceRequiresSupply",
   TasteLikedMaxSkipPct: "tasteLikedMaxSkipPct",
   TasteDislikedMinSkipPct: "tasteDislikedMinSkipPct",
   VarianceStreakDays: "varianceStreakDays",
@@ -112,6 +113,11 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     key: SettingKey.VarianceTolerancePct,
     value: 10,
     description: "Reconciliation variance considered actionable",
+  },
+  {
+    key: SettingKey.ServiceRequiresSupply,
+    value: true,
+    description: "Block meal service until the school records a received delivery for the day",
   },
   {
     key: SettingKey.TasteLikedMaxSkipPct,

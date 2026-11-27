@@ -351,6 +351,11 @@ export default defineSchema({
     takenAt: v.number(),
   }).index("by_schoolId_and_serviceDate", ["schoolId", "serviceDate"]),
 
+  menuItems: defineTable({
+    dish: v.string(),
+    active: v.boolean(),
+  }).index("by_dish", ["dish"]),
+
   settings: defineTable({
     key: v.string(),
     value: settingValue,

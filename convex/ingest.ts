@@ -6,7 +6,7 @@ import { fulfilExpectation } from "./expectations";
 import { toServiceDate } from "./lib/dates";
 import { recordEvent } from "./lib/events";
 import { normaliseTagUid } from "./lib/tagUid";
-import { mealServedOn } from "./overrides";
+import { mealServedOn, supplyFor } from "./overrides";
 import { readSetting, SettingKey } from "./settings";
 import { debitForMeal } from "./wallets";
 
@@ -141,6 +141,9 @@ async function recordTap(
   }
 
   const serviceDate = toServiceDate(event.occurredAt);
+  if (!(await supplyFor(ctx, device.schoolId, serviceDate)).supplied) {
+    return { eventId: event.eventId, status: "rejected", reason: "no_supply" };
+  }
   const skewSeconds = Math.abs(recordedAt - event.occurredAt) / MILLISECONDS_PER_SECOND;
   const clockSkewFlagged = skewSeconds > skewToleranceSeconds;
   const correlationId = event.correlationId ?? event.eventId;

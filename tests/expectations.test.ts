@@ -36,6 +36,7 @@ async function seedSchool(
       isSchoolDay: false,
       dayType: "holiday",
     });
+    await ctx.db.insert("settings", { key: "serviceRequiresSupply", value: false, description: "supply gate is covered in supplyGate.test.ts" });
     const schoolId = await ctx.db.insert("schools", {
       code: "SCH-1",
       name: "Test School",

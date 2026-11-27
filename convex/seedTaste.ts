@@ -267,6 +267,10 @@ export const seedTasteDemo = internalMutation({
     const totals: SimulationTotals = { ate: 0, skipped: 0, absent: 0 };
     const pupils = await enrolPupils(ctx, actors.schoolId, random);
     const days = schoolDaysEndingOn(args.endDate, args.schoolDays ?? DEFAULT_SCHOOL_DAYS);
+    for (const { dish } of MENU) {
+      const onMenu = await ctx.db.query("menuItems").withIndex("by_dish", (q) => q.eq("dish", dish)).unique();
+      if (!onMenu) await ctx.db.insert("menuItems", { dish, active: true });
+    }
     for (const [dayIndex, serviceDate] of days.entries()) {
       const item = MENU[dayIndex % MENU.length];
       const outcome = simulateDay(pupils, item, serviceDate, random);

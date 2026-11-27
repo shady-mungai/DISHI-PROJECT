@@ -7,7 +7,7 @@ import type { MutationCtx } from "./_generated/server";
 import { requireRole } from "./lib/authz";
 import { toServiceDate } from "./lib/dates";
 import { sha256Hex } from "./lib/hmac";
-import { MAX_DISH_LENGTH, normaliseDish } from "./lib/dishInsights";
+import { normaliseDish } from "./lib/dishInsights";
 import { DEFAULT_PORTION_GRAMS, portionsFromKg } from "./lib/portions";
 import { mintConfirmCode } from "./lib/supply";
 import {
@@ -38,7 +38,7 @@ export const dispatchArgs = {
   vehicle: v.string(),
   docketRef: v.optional(v.string()),
   requestId: v.string(),
-  dish: v.optional(v.string()),
+  dish: v.string(),
 };
 export async function dispatchDelivery(
   ctx: MutationCtx,
@@ -51,7 +51,7 @@ export async function dispatchDelivery(
     vehicle: string;
     docketRef?: string;
     requestId: string;
-    dish?: string;
+    dish: string;
   },
 ) {
   const byWeight = args.netKg !== undefined;
@@ -69,12 +69,17 @@ export async function dispatchDelivery(
   const vehicle = textField(args.vehicle, "Vehicle", 100);
   // Optional: the supplier's own paper docket number, when they keep one.
   const supplierDocket = args.docketRef?.trim() ? textField(args.docketRef, "Docket reference", 100) : "";
-  const dish = normaliseDish(args.dish ?? "");
-  if (dish.length > MAX_DISH_LENGTH)
-    throw new ConvexError(`Dish must be at most ${MAX_DISH_LENGTH} characters.`);
+  // Suppliers serve what is on the menu, so every dispatch names one active dish.
+  const dish = normaliseDish(args.dish);
+  const onMenu = await ctx.db
+    .query("menuItems")
+    .withIndex("by_dish", (q) => q.eq("dish", dish))
+    .unique();
+  if (!onMenu?.active)
+    throw new ConvexError("Choose a dish from the active menu.");
   const key = requestKey(actor._id, args.requestId);
   const fingerprint = await sha256Hex(
-    JSON.stringify([args.schoolId, portions, args.containers, args.netKg, vehicle, supplierDocket, ...(dish ? [dish] : [])]),
+    JSON.stringify([args.schoolId, portions, args.containers, args.netKg, vehicle, supplierDocket, dish]),
   );
   const previous = await ctx.db
     .query("deliveries")
@@ -123,7 +128,7 @@ export async function dispatchDelivery(
     vehicle,
     docketRef,
     reference,
-    ...(dish && { dish }),
+    dish,
     declaredBy: supplierId,
     dispatchedAt: now,
     expectedConfirmBy: now + ARRIVAL_MS,
@@ -140,7 +145,7 @@ export async function dispatchDelivery(
     ctx,
     deliveryId,
     "dispatched",
-    `${portions} portions${byWeight ? ` (${args.containers} containers, ${args.netKg} kg)` : ""}${dish ? ` of ${dish}` : ""} dispatched. Vehicle ${vehicle}${supplierDocket ? `; docket ${supplierDocket}` : ""}.`,
+    `${portions} portions${byWeight ? ` (${args.containers} containers, ${args.netKg} kg)` : ""} of ${dish} dispatched. Vehicle ${vehicle}${supplierDocket ? `; docket ${supplierDocket}` : ""}.`,
     actor._id,
   );
   const deadline = new Date(now + ARRIVAL_MS).toLocaleTimeString("en-GB", {

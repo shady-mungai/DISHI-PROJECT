@@ -15,6 +15,7 @@ type Harness = ReturnType<typeof convexTest>;
 
 async function seedSchool(t: Harness) {
   return await t.run(async (ctx) => {
+    await ctx.db.insert("settings", { key: "serviceRequiresSupply", value: false, description: "supply gate is covered in supplyGate.test.ts" });
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Test School", active: true });
     const firstStudentId = await ctx.db.insert("students", {
       schoolId,

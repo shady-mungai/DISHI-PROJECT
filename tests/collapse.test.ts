@@ -36,6 +36,7 @@ async function seedFamilies(t: Harness): Promise<Id<"schools">> {
     for (const day of WEEK_DAYS) {
       await ctx.db.insert("academicCalendar", { serviceDate: day, isSchoolDay: true, dayType: "full" });
     }
+    await ctx.db.insert("settings", { key: "serviceRequiresSupply", value: false, description: "supply gate is covered in supplyGate.test.ts" });
     const schoolId = await ctx.db.insert("schools", { code: "SCH-1", name: "Pilot Primary", active: true });
     for (let g = 0; g < GUARDIAN_COUNT; g += 1) {
       const guardianId = await ctx.db.insert("guardians", {
