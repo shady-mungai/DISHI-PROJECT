@@ -168,11 +168,13 @@ describe("school-confirmed delivery workflow", () => {
       serviceDate: DAY,
     });
     expect(
-      await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect()),
-    ).toHaveLength(1);
+      (await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect())).map(
+        (r) => r.recipientKey,
+      ),
+    ).toEqual([`school:${w.schoolId}`, `supplier:${w.supplier.id}`]);
     expect(
       await w.admin.client.query(api.deliveryNotifications.failures, {}),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     await expect(
       w.supplier.client.mutation(api.deliveryWorkflow.dispatch, {
         schoolId: w.schoolId,
@@ -349,7 +351,7 @@ describe("school-confirmed delivery workflow", () => {
     const inbox = await w.t.run((ctx) =>
       ctx.db.query("deliveryInbox").collect(),
     );
-    expect(inbox).toHaveLength(4);
+    expect(inbox).toHaveLength(5);
     const issued = await code(w, deliveryId);
     expect(await redeem(w, deliveryId, issued.code!)).toEqual({
       status: "confirmed",
@@ -607,6 +609,37 @@ describe("advisory Groq and operational SMS", () => {
       ).toBe("pending");
     },
   );
+  test("confirmation, dispute and admin resolution notify the school and supplier", async () => {
+    const w = await world();
+    const inboxFor = async (deliveryId: Id<"deliveries">) =>
+      (
+        await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect())
+      ).filter((r) => r.deliveryId === deliveryId);
+    const ok = await receipt(w);
+    const confirmed = (await inboxFor(ok.deliveryId)).filter((r) =>
+      r.dedupeKey.includes(":receipt.confirmed:"),
+    );
+    expect(confirmed.map((r) => r.recipientKey).sort()).toEqual(
+      [`school:${w.schoolId}`, `supplier:${w.supplier.id}`].sort(),
+    );
+    expect(confirmed[0].body).toContain("confirmed: 40 of 40");
+    const bad = await receipt(w, 38, "Short");
+    const disputed = (await inboxFor(bad.deliveryId)).filter((r) =>
+      r.dedupeKey.includes(":receipt.disputed:"),
+    );
+    expect(disputed.map((r) => r.recipientKey)).toContain("admin");
+    await w.admin.client.mutation(api.deliveryWorkflow.resolve, {
+      deliveryId: bad.deliveryId,
+      decision: "confirm",
+      reason: "Reconciled",
+      requestId: crypto.randomUUID(),
+    });
+    expect(
+      (await inboxFor(bad.deliveryId)).filter((r) =>
+        r.dedupeKey.includes(":admin.confirmed:"),
+      ),
+    ).toHaveLength(2);
+  });
   test("SMS contacts deduplicate and failed sends remain visible without changing receipt", async () => {
     const w = await world();
     const contact = {
@@ -626,14 +659,20 @@ describe("advisory Groq and operational SMS", () => {
     const key = crypto.randomUUID();
     const { deliveryId } = await dispatch(w, key);
     await dispatch(w, key);
-    const sms = await w.t.run((ctx) => ctx.db.query("deliverySms").collect());
+    const sms = (
+      await w.t.run((ctx) => ctx.db.query("deliverySms").collect())
+    ).filter((s) => s.msisdn);
     expect(sms).toHaveLength(1);
     await w.t.action(internal.deliveryNotifications.send, {
       smsId: sms[0]._id,
     });
     expect(
       await w.admin.client.query(api.deliveryNotifications.failures, {}),
-    ).toMatchObject([{ failureReason: "SMS console mode: no SMS sent" }]);
+    ).toContainEqual(
+      expect.objectContaining({
+        failureReason: "SMS console mode: no SMS sent",
+      }),
+    );
     expect((await w.t.run((ctx) => ctx.db.get(deliveryId)))?.status).toBe(
       "declared",
     );
