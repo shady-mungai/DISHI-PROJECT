@@ -3,7 +3,6 @@
 import { api } from "@/convex/_generated/api";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import {
-  AuditPanel,
   MetricsPanel,
   RevokeButton,
   SettingsPanel,
@@ -13,9 +12,7 @@ import { Centered, UserGate } from "@/app/components/SchoolGate";
 import { Stat } from "@/app/components/Stat";
 import {
   ALERT_CLASS,
-  BUTTON_CLASS,
   DATE_CLASS,
-  INPUT_CLASS,
   MUTED_CLASS,
   PAGE_CLASS,
   ROW_CLASS,
@@ -23,7 +20,6 @@ import {
   TITLE_CLASS,
 } from "@/app/components/ui";
 import { useQuery } from "convex/react";
-import type { FormEvent } from "react";
 import { useUrlDate } from "@/app/components/useUrlDate";
 import { useEffect, useState } from "react";
 
@@ -264,8 +260,6 @@ function AdminPanel({ page }: { page: string }) {
       )}
       {page === "Device fleet" && <FleetPanel />}
       {page === "Notification rules" && <RulesPanel />}
-      {page === "Message tracing" && <TracePanel />}
-      {page === "Audit history" && <AuditPanel from={from} to={to} />}
       {page === "Settings and retention" && <SettingsPanel />}
     </div>
   );
@@ -316,74 +310,3 @@ function FleetPanel() {
   );
 }
 
-// AD-07: one identifier in, the whole chain out.
-function TracePanel() {
-  const [input, setInput] = useState("");
-  const [identifier, setIdentifier] = useState<string | null>(null);
-  const trace = useQuery(api.admin.trace, identifier ? { identifier } : "skip");
-
-  function submit(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault();
-    setIdentifier(input.trim() || null);
-  }
-
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className={SECTION_TITLE_CLASS}>Trace a message</h2>
-      <form onSubmit={submit} className="flex flex-wrap gap-3">
-        <label className="flex flex-col gap-1">
-          <span>Notification, provider, event or correlation id</span>
-          <input
-            aria-label="Notification id, provider message id, event id or correlation id"
-            placeholder="Notification, provider, event or correlation id"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className={`${INPUT_CLASS} flex-1 font-sans`}
-          />
-        </label>
-        <button type="submit" className={BUTTON_CLASS}>
-          Trace
-        </button>
-      </form>
-      {trace && (
-        <div className="flex flex-col gap-2 text-sm">
-          <p className={MUTED_CLASS}>
-            Correlation id{" "}
-            <span className="font-sans">{trace.correlationId}</span> ·{" "}
-            {trace.events.length} event(s) · {trace.notifications.length}{" "}
-            notification(s)
-          </p>
-          <ul className="flex flex-col gap-1">
-            {trace.events.map((event) => (
-              <li key={event._id} className={`${ROW_CLASS} font-sans text-sm`}>
-                <span className="text-ink/80">
-                  {new Date(event.occurredAt).toLocaleString("en-KE", {
-                    timeZone: "Africa/Nairobi",
-                  })}
-                </span>
-                <span>{event.type}</span>
-                <span className="flex-1 text-ink/80">
-                  {JSON.stringify(event.payload)}
-                </span>
-              </li>
-            ))}
-            {trace.notifications.map((notification) => (
-              <li key={notification._id} className={ROW_CLASS}>
-                <span className="font-sans text-ink/80">
-                  {notification.maskedMsisdn}
-                </span>
-                <span className="font-sans">{notification.ruleKey}</span>
-                <span className="flex-1">{notification.body}</span>
-                <span className="text-ink/80">
-                  {notification.suppressionReason ??
-                    notification.failureReason ??
-                    notification.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
-  );
-}

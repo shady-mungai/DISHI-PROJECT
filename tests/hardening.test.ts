@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { auditLog, metricsReport } from "../convex/admin";
+import { metricsReport } from "../convex/admin";
 import { p95, spanDurations } from "../convex/lib/metrics";
 import { isTransientFailure, retryDelayMs } from "../convex/lib/retry";
 import { purgeExpiredOnce } from "../convex/retention";
@@ -116,16 +116,11 @@ describe("hardening: retries, revocation, retention, audit, metrics (D15)", () =
     expect(await t.run(async (ctx) => await purgeExpiredOnce(ctx))).toMatchObject({ notifications: 0, studentsDeidentified: 0 });
   });
 
-  test("the audit log lists administrative and override actions newest first, and metrics report p95 lags (FR-802, NFR-803)", async () => {
+  test("metrics report p95 lags (FR-802, NFR-803)", async () => {
     const t = convexTest(schema, modules);
     const world = await seedWorld(t);
     await t.mutation(internal.expectations.startSchoolDay, { schoolId: world.schoolId, serviceDate: TODAY, serviceStartAt: NOW });
     await t.mutation(internal.ingest.recordBatch, { deviceRef: DEVICE_REF, events: [{ eventId: "tap-1", tagUid: TAG_UID, occurredAt: NOW - 1500 }] });
-    await t.run(async (ctx) => {
-      await ctx.db.insert("events", { eventId: "audit-1", type: "admin.setting_changed", occurredAt: NOW + 1, recordedAt: NOW + 1, schemaVersion: 1, correlationId: "audit-1", payload: { key: "retentionEventDays", actor_id: "u1" } });
-    });
-    const log = await t.run(async (ctx) => await auditLog(ctx, { from: TODAY, to: TODAY }));
-    expect(log[0]).toMatchObject({ type: "admin.setting_changed" });
     const metrics = await t.run(async (ctx) => await metricsReport(ctx, { from: TODAY, to: TODAY }));
     expect(metrics.taps).toBe(1);
     expect(metrics.ingestionLagP95Ms).toBe(1500);

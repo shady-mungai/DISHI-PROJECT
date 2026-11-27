@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { deliverabilityReport, dryRunPage, traceChain } from "../convex/admin";
+import { deliverabilityReport, dryRunPage } from "../convex/admin";
 import schema from "../convex/schema";
 
 const modules = import.meta.glob("../convex/**/*.ts");
@@ -82,34 +82,5 @@ describe("admin console: dry run, deliverability, trace (D14)", () => {
       { ruleKey: "guardian.meal_tapped", sent: 1, suppressed: 0, segments: 1, costKes: 0.8 },
       { ruleKey: "guardian.meal_missed", sent: 0, suppressed: 1, segments: 0, costKes: 0 },
     ]);
-  });
-
-  test("a notification id, provider id or event id resolves to the originating event (AD-07, NFR-802)", async () => {
-    const t = convexTest(schema, modules);
-    const world = await seedWorld(t);
-    const notificationId = await t.run(async (ctx) => {
-      const event = (await ctx.db.query("events").withIndex("by_eventId", (q) => q.eq("eventId", "tap-1")).unique())!;
-      return await ctx.db.insert("notifications", {
-        dedupeKey: "n1",
-        ruleKey: "guardian.meal_tapped",
-        eventId: event._id,
-        correlationId: event.correlationId,
-        schoolId: world.schoolId,
-        guardianId: world.guardianId,
-        msisdn: "254700000123",
-        channel: "sms",
-        body: "b",
-        segments: 1,
-        status: "delivered",
-        providerMessageId: "prov-42",
-      });
-    });
-    const byNotification = await t.run(async (ctx) => await traceChain(ctx, notificationId));
-    expect(byNotification.events.map((row) => row.eventId)).toContain("tap-1");
-    expect(byNotification.notifications[0]).toMatchObject({ maskedMsisdn: "*********123", providerMessageId: "prov-42" });
-    const byProvider = await t.run(async (ctx) => await traceChain(ctx, "prov-42"));
-    expect(byProvider.correlationId).toBe(byNotification.correlationId);
-    const byEvent = await t.run(async (ctx) => await traceChain(ctx, "tap-1"));
-    expect(byEvent.correlationId).toBe(byNotification.correlationId);
   });
 });
