@@ -22,6 +22,7 @@ const DEFAULT_VARIANCE_TOLERANCE_PCT = 10;
 const DEFAULT_VARIANCE_STREAK_DAYS = 3;
 const VARIANCE_EVENT = "reconciliation.variance_exceeded";
 const OVERRIDE_RATE_EVENT = "integrity.override_rate_exceeded";
+const CONSUMED_EXCEEDS_RECEIVED_EVENT = "integrity.consumed_exceeds_received";
 const REACHED_STATUSES = new Set<Doc<"notifications">["status"]>(["sent", "delivered"]);
 const ATTEMPTED_STATUSES = new Set<Doc<"notifications">["status"]>(["sent", "delivered", "failed"]);
 
@@ -147,7 +148,19 @@ async function emitOnce(ctx: MutationCtx, event: { eventId: string; type: string
 // GV-03 / GV-04 / FR-705: runs after each daily reconciliation. Variance
 // streak and override rate are checked against their tolerances; each alert
 // fires at most once per school per service day, so a recompute is a no-op.
-export async function flagIntegrity(ctx: MutationCtx, args: { schoolId: Id<"schools">; serviceDate: string }): Promise<{ varianceExceeded: boolean; overrideRateExceeded: boolean }> {
+// Eaten > received is physically impossible, so it fires the same day with no
+// tolerance — only when a delivery was recorded (received is null otherwise).
+export async function flagIntegrity(ctx: MutationCtx, args: { schoolId: Id<"schools">; serviceDate: string; consumed: number; received: number | null }): Promise<{ varianceExceeded: boolean; overrideRateExceeded: boolean; consumedExceedsReceived: boolean }> {
+  let consumedExceedsReceived = false;
+  if (args.received !== null && args.consumed > args.received) {
+    consumedExceedsReceived = await emitOnce(ctx, {
+      eventId: `${CONSUMED_EXCEEDS_RECEIVED_EVENT}:${args.schoolId}:${args.serviceDate}`,
+      type: CONSUMED_EXCEEDS_RECEIVED_EVENT,
+      schoolId: args.schoolId,
+      serviceDate: args.serviceDate,
+      payload: { consumed: args.consumed, received: args.received, excess: args.consumed - args.received },
+    });
+  }
   const thresholds = await readThresholds(ctx);
   const streakDays = await streakAt(ctx, args.schoolId, args.serviceDate, thresholds.varianceTolerancePct);
   const rate = await overrideRate(ctx, { schoolId: args.schoolId, to: args.serviceDate });
@@ -172,7 +185,7 @@ export async function flagIntegrity(ctx: MutationCtx, args: { schoolId: Id<"scho
       payload: { override_pct: rate.ratePct, period: `${rate.from}/${rate.to}` },
     });
   }
-  return { varianceExceeded, overrideRateExceeded };
+  return { varianceExceeded, overrideRateExceeded, consumedExceedsReceived };
 }
 
 const schoolRowValidator = v.object({
