@@ -7,7 +7,6 @@ import { sha256Hex } from "./hmac";
 export const ARRIVAL_MS = 30 * 60_000;
 export const CODE_COOLDOWN_MS = 15 * 60_000;
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
-export const PHOTO_MODEL = "qwen/qwen3.8-27b";
 
 export function checkPortions(n: number, allowZero = true) {
   if (!Number.isSafeInteger(n) || n < (allowZero ? 0 : 1) || n > 1_000_000)

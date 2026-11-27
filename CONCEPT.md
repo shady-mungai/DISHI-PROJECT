@@ -53,11 +53,11 @@ This helps suppliers judge whether the forecast is reliable enough for planning.
 
 ## 4. Dispatch and delivery receipt
 
-Suppliers record the destination school, portion count, vehicle and delivery docket reference. Schools record what arrived, attach receipt photos and report problems.
+Suppliers record the destination school, portion count, vehicle and delivery docket reference. Schools record what arrived and report problems.
 
 Quantity differences or reported problems go to central admin for resolution. Delivery history and timelines help users follow each delivery, while alerts highlight overdue arrivals or missing confirmations.
 
-There is also a receipt-code fallback when photo upload is unavailable. Photo assessment supports evidence review; it does not certify quantities or food safety.
+The school confirms receipt with a one-time code that the supplier enters. If the supplier cannot enter the code, the school can confirm with a photo instead, and central admin reviews it.
 
 ## 5. Meal service and NFC reader
 

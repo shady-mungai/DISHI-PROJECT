@@ -24,9 +24,8 @@ only for additional intentional frontend origins; preserve existing values when
 changing it. Keep localhost and the development tunnel on the development backend.
 
 Configure the production integrations you use in Convex: `USSD_TOKEN`, `DLR_TOKEN`,
-Africa's Talking or Celcom credentials, and `GROQ_API_KEY` for AI delivery photo
-assessment. The SMS channel defaults to console logging; configure the real channel
-and programme settings before live use. AI receipt review needs a valid Groq key.
+and Africa's Talking or Celcom credentials. The SMS channel defaults to console
+logging; configure the real channel and programme settings before live use.
 Keep all these secrets out of Cloudflare build variables and `NEXT_PUBLIC_*` values.
 
 Deploy the backend from the project root:

@@ -45,7 +45,7 @@ for (const [width, height] of [
     ).toBe(true);
   });
 }
-test("upload errors preserve quantities and offer code fallback", async ({
+test("photo upload errors preserve quantities and the code still confirms", async ({
   page,
 }) => {
   await page.route("**/delivery-photo", (route) =>
@@ -69,22 +69,17 @@ test("upload errors preserve quantities and offer code fallback", async ({
       mimeType: "image/png",
       buffer: Buffer.from("photo"),
     });
-  await page
-    .getByRole("button", { name: "Confirm received quantities" })
-    .click();
+  await page.getByRole("button", { name: "Confirm with photo" }).click();
   await expect(page.getByRole("alert")).toContainText("Upload unavailable");
   await expect(
     page.getByLabel("Portions received", { exact: true }),
   ).toHaveValue("398");
   await page
-    .getByRole("button", { name: "Record quantities and request code" })
+    .getByRole("button", { name: "Record quantities and get receipt code" })
     .click();
   await expect(page.getByText("123456", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText("Photo evidence missing", { exact: false }),
-  ).toBeVisible();
 });
-test("matching photo receipt renders confirmation independently from assessment", async ({
+test("photo-only receipt confirms when the supplier cannot enter a code", async ({
   page,
 }) => {
   await page.route("**/delivery-photo", (route) =>
@@ -106,13 +101,8 @@ test("matching photo receipt renders confirmation independently from assessment"
       mimeType: "image/png",
       buffer: Buffer.from("photo"),
     });
-  await page
-    .getByRole("button", { name: "Confirm received quantities" })
-    .click();
+  await page.getByRole("button", { name: "Confirm with photo" }).click();
   await expect(page.getByText("confirmed", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText("Photo assessment: pending", { exact: true }),
-  ).toBeVisible();
 });
 test("supplier dispatch sends required fields and a request reference", async ({
   page,

@@ -73,7 +73,9 @@ export default defineSchema({
     displayName: v.string(),
     role: userRole,
     schoolId: v.optional(v.id("schools")),
-  }).index("by_authUserId", ["authUserId"]),
+  })
+    .index("by_authUserId", ["authUserId"])
+    .index("by_role", ["role"]),
 
   schools: defineTable({
     code: v.string(),
@@ -260,6 +262,8 @@ export default defineSchema({
     missingEvidence: v.optional(v.boolean()),
     reviewRequired: v.optional(v.boolean()),
     reviewResolvedAt: v.optional(v.number()),
+    // Legacy AI photo-assessment fields (feature removed). Kept so existing
+    // rows still validate; drop once deployments are cleared of them.
     photoReview: v.optional(photoReview),
     photoGeneration: v.optional(v.number()),
     photoAttempts: v.optional(v.number()),
