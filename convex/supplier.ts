@@ -9,6 +9,7 @@ import { attendanceByWeekday, DEFAULT_MIN_DISH_DAYS, dishInsights, type DishInsi
 import { forecastAccuracy, type ForecastAccuracy } from "./lib/monitor";
 import { deliveryStatus } from "./schema";
 import { readNumberSetting, SettingKey } from "./settings";
+import { DEFAULT_PORTION_GRAMS } from "./lib/portions";
 
 const SUPPLIER_ROLES = ["supplier", "county", "admin"] as const;
 const MAX_SCHOOLS = 100;
@@ -258,5 +259,15 @@ export const recentDishes = query({
       .order("desc")
       .take(RECENT_DELIVERIES_SCANNED);
     return [...new Set(recent.flatMap((delivery) => (delivery.dish ? [delivery.dish] : [])))].slice(0, MAX_RECENT_DISHES);
+  },
+});
+
+// Serving size for the dispatch calculator; same setting the dispatch mutation uses.
+export const portionGrams = query({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    await requireRole(ctx, SUPPLIER_ROLES);
+    return await readNumberSetting(ctx, SettingKey.PortionGrams, DEFAULT_PORTION_GRAMS);
   },
 });

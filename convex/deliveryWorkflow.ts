@@ -8,6 +8,7 @@ import { requireRole } from "./lib/authz";
 import { toServiceDate } from "./lib/dates";
 import { sha256Hex } from "./lib/hmac";
 import { MAX_DISH_LENGTH, normaliseDish } from "./lib/dishInsights";
+import { DEFAULT_PORTION_GRAMS, portionsFromKg } from "./lib/portions";
 import { mintConfirmCode } from "./lib/supply";
 import {
   accessDelivery,
@@ -63,7 +64,7 @@ export async function dispatchDelivery(
   }
   // ponytail: one serving size for every dish; per-dish grams when dishes differ enough to skew pay.
   const portions = byWeight
-    ? Math.floor((args.netKg! * 1000) / (await readNumberSetting(ctx, SettingKey.PortionGrams, 350)))
+    ? portionsFromKg(args.netKg!, await readNumberSetting(ctx, SettingKey.PortionGrams, DEFAULT_PORTION_GRAMS))
     : (args.portions ?? 0);
   checkPortions(portions, false);
   const vehicle = textField(args.vehicle, "Vehicle", 100);

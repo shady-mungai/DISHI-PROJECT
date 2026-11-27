@@ -8,6 +8,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { authClient } from "@/app/auth-client";
 import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
+import { portionsFromKg } from "@/convex/lib/portions";
 import {
   ALERT_CLASS,
   BUTTON_CLASS,
@@ -89,6 +90,7 @@ export function SupplierDispatch() {
   const schools = useQuery(api.deliveries.listSchools);
   const dispatch = useMutation(api.deliveryWorkflow.dispatch);
   const recentDishes = useQuery(api.supplier.recentDishes);
+  const grams = useQuery(api.supplier.portionGrams);
   const task = useTask();
   const key = useRequestId();
   const [schoolId, setSchool] = useState("");
@@ -101,108 +103,126 @@ export function SupplierDispatch() {
     portions: number;
     expectedArrivalAt: number;
   } | null>(null);
+  const kg = Number(netKg);
+  const portions = grams && kg > 0 ? portionsFromKg(kg, grams) : null;
   return (
     <section className="flex flex-col gap-4">
       <h1 className={TITLE_CLASS}>Dispatch a delivery</h1>
-      <p>
-        Arrival is expected within 30 minutes. The school records and confirms
-        what it receives.
-      </p>
-      <form
-        className="grid gap-4 sm:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void task.run(async () => {
-            const input = {
-              schoolId: schoolId as Id<"schools">,
-              containers: Number(containers),
-              netKg: Number(netKg),
-              vehicle,
-              dish,
-            };
-            const sent = await dispatch({ ...input, requestId: key(input) });
-            setResult(sent);
-            setContainers("");
-            setNetKg("");
-            return "Dispatch recorded. School notification queued.";
-          });
-        }}
+      <div
+        role="note"
+        className="rounded-control border-l-4 border-primary bg-surface px-4 py-3 text-sm"
       >
-        <label className="flex min-w-0 flex-col gap-1">
-          School
-          <select
-            required
-            value={schoolId}
-            onChange={(e) => setSchool(e.target.value)}
-            className={INPUT_CLASS}
-          >
-            <option value="">Choose school</option>
-            {schools?.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name} ({s.code})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          Containers
-          <input
-            required
-            type="number"
-            min="1"
-            max="1000"
-            step="1"
-            value={containers}
-            onChange={(e) => setContainers(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Net food weight (kg, without containers)
-          <input
-            required
-            type="number"
-            min="0.1"
-            max="100000"
-            step="0.1"
-            value={netKg}
-            onChange={(e) => setNetKg(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Vehicle
-          <input
-            required
-            maxLength={100}
-            value={vehicle}
-            onChange={(e) => setVehicle(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Dish served
-          <input
-            maxLength={60}
-            list="recent-dishes"
-            placeholder="e.g. githeri"
-            value={dish}
-            onChange={(e) => setDish(e.target.value)}
-            className={INPUT_CLASS}
-          />
-          <datalist id="recent-dishes">
-            {recentDishes?.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-        </label>
-        <button
-          disabled={task.busy || !schools?.length}
-          className={BUTTON_CLASS}
+        <p className="font-semibold">How dispatch works</p>
+        <p>
+          Weigh the food, then enter the containers and net kilograms. Dishi
+          turns kilograms into pupil portions. The school checks the container
+          count on arrival, within 30 minutes, and confirms what it received.
+          Payment follows confirmed portions.
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <form
+          className="grid gap-4 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void task.run(async () => {
+              const input = {
+                schoolId: schoolId as Id<"schools">,
+                containers: Number(containers),
+                netKg: Number(netKg),
+                vehicle,
+                dish,
+              };
+              const sent = await dispatch({ ...input, requestId: key(input) });
+              setResult(sent);
+              setContainers("");
+              setNetKg("");
+              return "Dispatch recorded. School notification queued.";
+            });
+          }}
         >
-          Dispatch delivery
-        </button>
-      </form>
+          <label className="flex min-w-0 flex-col gap-1">
+            School
+            <select
+              required
+              value={schoolId}
+              onChange={(e) => setSchool(e.target.value)}
+              className={INPUT_CLASS}
+            >
+              <option value="">Choose school</option>
+              {schools?.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            Containers
+            <input
+              required
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              value={containers}
+              onChange={(e) => setContainers(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            Net food weight (kg, without containers)
+            <input
+              required
+              type="number"
+              min="0.1"
+              max="100000"
+              step="0.1"
+              value={netKg}
+              onChange={(e) => setNetKg(e.target.value)}
+              className={INPUT_CLASS}
+            />
+            {portions !== null && (
+              <span className={`${MUTED_CLASS} lg:hidden`}>
+                = {portions} portions
+              </span>
+            )}
+          </label>
+          <label className="flex flex-col gap-1">
+            Vehicle
+            <input
+              required
+              maxLength={100}
+              value={vehicle}
+              onChange={(e) => setVehicle(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            Dish served
+            <input
+              maxLength={60}
+              list="recent-dishes"
+              placeholder="e.g. githeri"
+              value={dish}
+              onChange={(e) => setDish(e.target.value)}
+              className={INPUT_CLASS}
+            />
+            <datalist id="recent-dishes">
+              {recentDishes?.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </label>
+          <button
+            disabled={task.busy || !schools?.length}
+            className={BUTTON_CLASS}
+          >
+            Dispatch delivery
+          </button>
+        </form>
+        <PortionCalculator kg={kg} grams={grams} portions={portions} />
+      </div>
       <Feedback task={task} />
       {result && (
         <div className={PANEL_CLASS}>
@@ -215,6 +235,53 @@ export function SupplierDispatch() {
         </div>
       )}
     </section>
+  );
+}
+
+function PortionCalculator({
+  kg,
+  grams,
+  portions,
+}: {
+  kg: number;
+  grams: number | undefined;
+  portions: number | null;
+}) {
+  if (grams === undefined)
+    return <aside className={PANEL_CLASS}>Loading serving size…</aside>;
+  const leftover =
+    portions === null ? 0 : Math.round(kg * 1000) - portions * grams;
+  return (
+    <aside className={PANEL_CLASS} aria-labelledby="calculator-title">
+      <h2 id="calculator-title" className={SECTION_TITLE_CLASS}>
+        Portion calculator
+      </h2>
+      <p aria-live="polite" className="text-2xl font-semibold text-green">
+        {portions === null
+          ? "Enter the net kg"
+          : `${kg} kg → ${portions} portions`}
+      </p>
+      {leftover > 0 && (
+        <p className={MUTED_CLASS}>
+          {leftover} g left over, less than one plate, so it is not counted.
+        </p>
+      )}
+      <p>
+        🍲 One portion is <strong>{grams} g</strong>, one learner&apos;s plate.
+      </p>
+      <ul className="flex flex-col gap-1 text-sm">
+        {[1, 10, 50].map((example) => (
+          <li key={example}>
+            {example} kg feeds <strong>{portionsFromKg(example, grams)}</strong>{" "}
+            learners
+          </li>
+        ))}
+      </ul>
+      <p className={MUTED_CLASS}>
+        Weigh the food, not the sufuria: weigh it full, then take away the empty
+        weight.
+      </p>
+    </aside>
   );
 }
 

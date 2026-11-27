@@ -178,7 +178,7 @@ describe("focused workspace pages", () => {
   it("admin dispatch and payment file destinations remain separate", () => {
     state.role = "admin";
     renderToStaticMarkup(createElement(DeliveryGate));
-    expect(state.queries).toEqual(["deliveries:listSchools", "supplier:recentDishes"]);
+    expect(state.queries).toEqual(["deliveries:listSchools", "supplier:recentDishes", "supplier:portionGrams"]);
     state.queries = [];
     renderToStaticMarkup(createElement(DeliveryGate, { payment: true }));
     expect(state.queries).toEqual(["deliveries:paymentFile"]);

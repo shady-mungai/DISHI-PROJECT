@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { dispatchDelivery } from "../convex/deliveryWorkflow";
+import { portionsFromKg } from "../convex/lib/portions";
 import schema from "../convex/schema";
 
 const modules = import.meta.glob("../convex/**/*.ts");
@@ -28,4 +29,9 @@ test("dispatch by containers and net kg counts portions from the serving size", 
   await expect(send("r-3", 0, 70)).rejects.toThrow("containers");
   await expect(send("r-4", 2, 0)).rejects.toThrow("kg");
   await expect(send("r-5", 1, 0.1)).rejects.toThrow("portions"); // under one portion
+});
+
+test("calculator and server share one rounding: whole grams, then whole portions", () => {
+  expect(portionsFromKg(10, 350)).toBe(28);
+  expect(portionsFromKg(4.55, 350)).toBe(13); // 4.55 * 1000 is 4549.999… in floating point
 });
