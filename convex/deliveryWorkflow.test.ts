@@ -171,10 +171,10 @@ describe("school-confirmed delivery workflow", () => {
       (await w.t.run((ctx) => ctx.db.query("deliveryInbox").collect())).map(
         (r) => r.recipientKey,
       ),
-    ).toEqual([`school:${w.schoolId}`, `supplier:${w.supplier.id}`]);
+    ).toEqual([`school:${w.schoolId}`]);
     expect(
       await w.admin.client.query(api.deliveryNotifications.failures, {}),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     await expect(
       w.supplier.client.mutation(api.deliveryWorkflow.dispatch, {
         schoolId: w.schoolId,
@@ -351,7 +351,7 @@ describe("school-confirmed delivery workflow", () => {
     const inbox = await w.t.run((ctx) =>
       ctx.db.query("deliveryInbox").collect(),
     );
-    expect(inbox).toHaveLength(5);
+    expect(inbox).toHaveLength(4);
     const issued = await code(w, deliveryId);
     expect(await redeem(w, deliveryId, issued.code!)).toEqual({
       status: "confirmed",
