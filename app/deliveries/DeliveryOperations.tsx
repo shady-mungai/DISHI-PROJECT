@@ -8,7 +8,9 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { kgFromPortions, portionsFromKg } from "@/convex/lib/portions";
 import {
+  ACTIVE_BADGE_CLASS,
   ALERT_CLASS,
+  INACTIVE_BADGE_CLASS,
   BUTTON_CLASS,
   CODE_CLASS,
   INPUT_CLASS,
@@ -884,6 +886,14 @@ export function OperationalContacts() {
   const [target, setTarget] = useState("admin");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const audienceLabel = (recipientKey: string) => {
+    if (recipientKey === "admin") return "Central admin";
+    const [kind, id] = recipientKey.split(":");
+    if (kind === "school")
+      return schools?.find((s) => s._id === id)?.name ?? "School";
+    const supplier = data?.suppliers.find((s) => s._id === id);
+    return `Supplier · ${supplier?.displayName ?? "Unknown"}`;
+  };
   return (
     <section className="flex flex-col gap-4">
       <h2 className={SECTION_TITLE_CLASS}>Delivery SMS contacts</h2>
@@ -951,13 +961,25 @@ export function OperationalContacts() {
           Save contact
         </button>
       </form>
-      <ul className="flex flex-col gap-3">
+      <ul className="grid gap-3 md:grid-cols-2">
         {data?.contacts.map((c) => (
-          <li key={c._id} className={`${PANEL_CLASS} [overflow-wrap:anywhere]`}>
-            <p>
-              {c.name} · {c.msisdn} · {c.recipientKey} ·{" "}
-              {c.active ? "Active" : "Inactive"}
-            </p>
+          <li
+            key={c._id}
+            className={`${PANEL_CLASS} flex flex-col gap-3 [overflow-wrap:anywhere]`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <p className="text-lg font-semibold">{c.name}</p>
+                <p className={MUTED_CLASS}>{audienceLabel(c.recipientKey)}</p>
+              </div>
+              <span
+                className={c.active ? ACTIVE_BADGE_CLASS : INACTIVE_BADGE_CLASS}
+              >
+                <span aria-hidden className="size-2 rounded-full bg-current" />
+                {c.active ? "Active" : "Inactive"}
+              </span>
+            </div>
+            <p className="font-mono">{c.msisdn}</p>
             <button
               className={SECONDARY_BUTTON_CLASS}
               disabled={task.busy}
@@ -988,10 +1010,9 @@ export function OperationalContacts() {
       <ul className="flex flex-col gap-3">
         {failures?.map((f) => (
           <li key={f._id} className={`${PANEL_CLASS} [overflow-wrap:anywhere]`}>
+            <p className="font-semibold">{audienceLabel(f.recipientKey)}</p>
             <p>{f.body}</p>
-            <p>
-              {f.recipientKey}: {f.failureReason}
-            </p>
+            <p className="text-sm font-medium text-error">{f.failureReason}</p>
             <button
               disabled={task.busy}
               className={SECONDARY_BUTTON_CLASS}
