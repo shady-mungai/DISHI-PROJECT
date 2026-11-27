@@ -232,6 +232,8 @@ export default defineSchema({
     schoolId: v.id("schools"),
     serviceDate: v.string(),
     portions: v.number(),
+    containers: v.optional(v.number()),
+    netKg: v.optional(v.number()),
     vehicle: v.optional(v.string()),
     docketRef: v.string(),
     dispatchedAt: v.number(),
