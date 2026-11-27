@@ -8,9 +8,9 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { kgFromPortions, portionsFromKg } from "@/convex/lib/portions";
 import {
-  ACTIVE_BADGE_CLASS,
+  ACTIVE_DOT_CLASS,
   ALERT_CLASS,
-  INACTIVE_BADGE_CLASS,
+  INACTIVE_DOT_CLASS,
   BUTTON_CLASS,
   CODE_CLASS,
   INPUT_CLASS,
@@ -967,17 +967,17 @@ export function OperationalContacts() {
             key={c._id}
             className={`${PANEL_CLASS} flex flex-col gap-3 [overflow-wrap:anywhere]`}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <p className="text-lg font-semibold">{c.name}</p>
-                <p className={MUTED_CLASS}>{audienceLabel(c.recipientKey)}</p>
-              </div>
-              <span
-                className={c.active ? ACTIVE_BADGE_CLASS : INACTIVE_BADGE_CLASS}
-              >
-                <span aria-hidden className="size-2 rounded-full bg-current" />
-                {c.active ? "Active" : "Inactive"}
-              </span>
+            <div className="flex flex-col gap-1">
+              <p className="flex items-center gap-2 text-lg font-semibold">
+                <span
+                  role="img"
+                  aria-label={c.active ? "Active" : "Inactive"}
+                  title={c.active ? "Active" : "Inactive"}
+                  className={c.active ? ACTIVE_DOT_CLASS : INACTIVE_DOT_CLASS}
+                />
+                {c.name}
+              </p>
+              <p className={MUTED_CLASS}>{audienceLabel(c.recipientKey)}</p>
             </div>
             <p className="font-mono">{c.msisdn}</p>
             <button
