@@ -640,6 +640,94 @@ describe("advisory Groq and operational SMS", () => {
       ),
     ).toHaveLength(2);
   });
+  test("Celcom simulation: each actor receives exactly the expected delivery SMS", async () => {
+    const w = await world();
+    await w.t.run((ctx) =>
+      ctx.db.insert("settings", {
+        key: "smsChannel",
+        value: "celcom",
+        description: "test",
+      }),
+    );
+    vi.stubEnv("CELCOM_URL", "https://celcom.test/send");
+    vi.stubEnv("CELCOM_API_KEY", "k");
+    vi.stubEnv("CELCOM_PARTNER_ID", "p");
+    vi.stubEnv("CELCOM_SHORTCODE", "DISHI");
+    const sent: { mobile: string; message: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent.push(JSON.parse(String(init.body)));
+        return new Response(
+          JSON.stringify({ responses: [{ "response-code": 200, messageid: sent.length }] }),
+          { status: 200 },
+        );
+      }),
+    );
+    const numbers = { school: "+254711000001", supplier: "+254711000002", admin: "+254711000003" };
+    for (const [audience, msisdn] of Object.entries(numbers))
+      await w.admin.client.mutation(api.deliveryNotifications.saveContact, {
+        ...(audience === "school" ? { schoolId: w.schoolId } : {}),
+        ...(audience === "supplier" ? { supplierId: w.supplier.id } : {}),
+        name: audience,
+        msisdn,
+        active: true,
+      });
+    const flush = async () => {
+      for (const row of await w.t.run((ctx) =>
+        ctx.db.query("deliverySms").collect(),
+      ))
+        if (row.status === "queued")
+          await w.t.action(internal.deliveryNotifications.send, { smsId: row._id });
+    };
+    const inbox = (m: string) =>
+      sent.filter((x) => x.mobile === m.slice(1)).map((x) => x.message);
+    const step = async (label: string, run: () => Promise<unknown>) => {
+      const before = sent.length;
+      await run();
+      await flush();
+      return { label, to: sent.slice(before).map((x) => x.mobile).sort() };
+    };
+    const digits = (k: keyof typeof numbers) => numbers[k].slice(1);
+    let goodId: Id<"deliveries">;
+    let badId: Id<"deliveries">;
+    const steps = [
+      await step("dispatch", async () => (goodId = (await dispatch(w)).deliveryId)),
+      await step("photo receipt confirmed", async () => {
+        const evidenceId = await photo(w, goodId);
+        await w.school.client.mutation(api.deliveryWorkflow.submitReceipt, {
+          deliveryId: goodId, evidenceId, portionsReceived: 40, problem: "", requestId: crypto.randomUUID(),
+        });
+      }),
+      await step("dispatch #2", async () => (badId = (await dispatch(w)).deliveryId)),
+      await step("code receipt disputed", async () => {
+        const issued = await code(w, badId, 35);
+        await redeem(w, badId, issued.code!);
+      }),
+      await step("admin confirms", () =>
+        w.admin.client.mutation(api.deliveryWorkflow.resolve, {
+          deliveryId: badId, decision: "confirm", reason: "Reconciled with school", requestId: crypto.randomUUID(),
+        }),
+      ),
+    ];
+    console.log(JSON.stringify(steps));
+    expect(steps.map((x) => x.to)).toEqual([
+      [digits("school")],
+      [digits("school"), digits("supplier")].sort(),
+      [digits("school")],
+      [digits("school"), digits("supplier"), digits("admin")].sort(),
+      [digits("school"), digits("supplier")].sort(),
+    ]);
+    expect(inbox(numbers.supplier).some((m) => m.includes("incoming"))).toBe(false);
+    expect(inbox(numbers.admin)[0]).toContain("disputed: 35 of 40");
+    expect(
+      new Set(
+        (await w.t.run((ctx) => ctx.db.query("deliverySms").collect())).map(
+          (r) => r.status,
+        ),
+      ),
+    ).toEqual(new Set(["sent"]));
+  });
   test("SMS contacts deduplicate and failed sends remain visible without changing receipt", async () => {
     const w = await world();
     const contact = {
