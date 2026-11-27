@@ -6,7 +6,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
-import { portionsFromKg } from "@/convex/lib/portions";
+import { kgFromPortions, portionsFromKg } from "@/convex/lib/portions";
 import {
   ALERT_CLASS,
   BUTTON_CLASS,
@@ -752,6 +752,8 @@ export function ForecastPanel({ schoolId }: { schoolId?: Id<"schools"> }) {
     schoolId,
     serviceDate: date,
   });
+  // Supplier view only: portionGrams is supplier-gated, schools pass a schoolId.
+  const grams = useQuery(api.supplier.portionGrams, schoolId ? "skip" : {});
   return (
     <section className="flex flex-col gap-3">
       <h2 className={SECTION_TITLE_CLASS}>Tomorrow’s forecast · {date}</h2>
@@ -768,6 +770,12 @@ export function ForecastPanel({ schoolId }: { schoolId?: Id<"schools"> }) {
                   ? "Forecast unavailable"
                   : `${row.portions} portions`}
             </p>
+            {row.state === "available" && grams && (
+              <p className="font-medium">
+                Cook {kgFromPortions(row.portions!, grams)} kg net food
+                <span className={MUTED_CLASS}> · {grams} g per portion</span>
+              </p>
+            )}
             {row.state === "available" && (
               <p>
                 {row.confidence} confidence · updated{" "}
