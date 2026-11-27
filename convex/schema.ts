@@ -14,7 +14,10 @@ export const expectationStatus = v.union(
   v.literal("pending"),
   v.literal("fulfilled"),
   v.literal("missed"),
+  v.literal("absent"),
 );
+
+export const missReason = v.union(v.literal("supply"), v.literal("present"), v.literal("unknown"));
 
 export const eventPayload = v.record(
   v.string(),
@@ -56,13 +59,23 @@ export const forecastConfidence = v.union(v.literal("low"), v.literal("medium"),
 export const photoReview = v.union(v.literal("pending"), v.literal("clear"), v.literal("flagged"), v.literal("failed"));
 export const photoFindings = v.object({ foodVisible: v.boolean(), clarity: v.union(v.literal("clear"), v.literal("unclear")), unrelatedContent: v.boolean(), description: v.string() });
 
+export const dayAttendance = v.object({
+  registerTaken: v.boolean(),
+  absent: v.number(),
+  missedPresent: v.number(),
+  missedSupply: v.number(),
+  missedUnknown: v.number(),
+});
+
 export default defineSchema({
   users: defineTable({
     authUserId: v.string(),
     displayName: v.string(),
     role: userRole,
     schoolId: v.optional(v.id("schools")),
-  }).index("by_authUserId", ["authUserId"]),
+  })
+    .index("by_authUserId", ["authUserId"])
+    .index("by_role", ["role"]),
 
   schools: defineTable({
     code: v.string(),
@@ -163,6 +176,7 @@ export default defineSchema({
     windowEnd: v.number(),
     cutoffAt: v.number(),
     status: expectationStatus,
+    missReason: v.optional(missReason),
   })
     .index("by_student_serviceDate", ["studentId", "serviceDate"])
     .index("by_school_serviceDate_status", ["schoolId", "serviceDate", "status"]),
@@ -220,6 +234,8 @@ export default defineSchema({
     schoolId: v.id("schools"),
     serviceDate: v.string(),
     portions: v.number(),
+    containers: v.optional(v.number()),
+    netKg: v.optional(v.number()),
     vehicle: v.optional(v.string()),
     docketRef: v.string(),
     dispatchedAt: v.number(),
@@ -240,12 +256,15 @@ export default defineSchema({
     receiptRecordedAt: v.optional(v.number()),
     receiptConfirmedAt: v.optional(v.number()),
     receiptBy: v.optional(v.id("users")),
-    receiptMethod: v.optional(v.union(v.literal("photo"), v.literal("code"))),
+    receiptMethod: v.optional(v.union(v.literal("photo"), v.literal("code"))), // "photo" = legacy rows only
     reportedProblem: v.optional(v.string()),
-    evidenceId: v.optional(v.id("deliveryEvidence")),
-    missingEvidence: v.optional(v.boolean()),
     reviewRequired: v.optional(v.boolean()),
     reviewResolvedAt: v.optional(v.number()),
+    // Legacy photo-evidence fields (photo confirmation and AI assessment are
+    // removed). Kept so existing rows still validate; drop once deployments
+    // are cleared of them.
+    evidenceId: v.optional(v.id("deliveryEvidence")),
+    missingEvidence: v.optional(v.boolean()),
     photoReview: v.optional(photoReview),
     photoGeneration: v.optional(v.number()),
     photoAttempts: v.optional(v.number()),
@@ -253,6 +272,7 @@ export default defineSchema({
     photoAssessedAt: v.optional(v.number()),
     photoFindings: v.optional(photoFindings),
     photoError: v.optional(v.string()),
+    dish: v.optional(v.string()),
   })
     .index("by_school_serviceDate", ["schoolId", "serviceDate"])
     .index("by_school_confirmCodeHash", ["schoolId", "confirmCodeHash"])
@@ -264,6 +284,7 @@ export default defineSchema({
     .index("by_schoolId_and_status", ["schoolId", "status"])
     .index("by_reviewRequired", ["reviewRequired"]),
 
+  // Legacy: photo uploads are no longer accepted; table kept for existing rows.
   deliveryEvidence: defineTable({
     deliveryId: v.id("deliveries"), uploadedBy: v.id("users"), storageId: v.id("_storage"),
     contentType: v.string(), size: v.number(), requestKey: v.string(),
@@ -319,7 +340,16 @@ export default defineSchema({
     variance: v.number(),
     variancePct: v.number(),
     computedAt: v.number(),
+    attendance: v.optional(dayAttendance),
   }).index("by_school_serviceDate", ["schoolId", "serviceDate"]),
+
+  registers: defineTable({
+    schoolId: v.id("schools"),
+    serviceDate: v.string(),
+    absentStudentIds: v.array(v.id("students")),
+    takenBy: v.id("users"),
+    takenAt: v.number(),
+  }).index("by_schoolId_and_serviceDate", ["schoolId", "serviceDate"]),
 
   settings: defineTable({
     key: v.string(),

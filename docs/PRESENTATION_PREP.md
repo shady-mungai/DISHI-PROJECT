@@ -18,7 +18,7 @@ Use **Mlo: An Intelligent School Feeding Management and Communication System** a
 
 “A school feeding programme has to answer three practical questions: how many meals should we prepare, was the delivery received, and did each pupil collect a meal? Those answers matter to different people. The supplier needs a demand estimate, the school needs a reliable service record, the guardian needs timely information, and the county needs accountability.
 
-“Mlo connects those decisions through a shared event record. I will follow one meal through the system, then show how historical forecasting, configurable rules and AI photo review turn those records into useful action.”
+“Mlo connects those decisions through a shared event record. I will follow one meal through the system, then show how historical forecasting and configurable rules turn those records into useful action.”
 
 Pause. Then begin the demo. Do not open with your technology stack.
 
@@ -30,7 +30,7 @@ Pause. Then begin the demo. Do not open with your technology stack.
 | 1:00–1:40 | Objective and workflow diagram | One traceable journey links planning, service and oversight. |
 | 1:40–2:40 | Supplier forecast | Historical collection patterns inform preparation. |
 | 2:40–4:20 | Supplier dispatch and school receipt | Declared quantities and independently recorded received quantities are distinct. |
-| 4:20–5:20 | Photo findings and review status | AI screens evidence; humans own consequential decisions. |
+| 4:20–5:20 | Supplier redeems the school's code | Two-party handshake: only a matching code confirms receipt for payment. |
 | 5:20–6:40 | Pupil meal collection and school counts | A tap records collection and updates the shared record. |
 | 6:40–7:30 | Guardian notification and trace | Rules choose communication; policy controls whether and when it sends. |
 | 7:30–8:40 | Reconciliation and county view | Compare confirmed receipts with collection records and investigate exceptions. |
@@ -38,7 +38,7 @@ Pause. Then begin the demo. Do not open with your technology stack.
 | 10:00–11:10 | Architecture, access control and tests | Briefly justify design choices with evidence. |
 | 11:10–12:00 | Limitations and closing | State the implemented contribution and its practical limits. |
 
-For eight minutes, use pre-existing dispatch and photo results; omit enrolment, USSD, payment-file export and the detailed architecture explanation. Preserve forecasting, meal collection, one exception and the intelligence explanation.
+For eight minutes, use a pre-existing dispatch and code redemption; omit enrolment, USSD, payment-file export and the detailed architecture explanation. Preserve forecasting, meal collection, one exception and the intelligence explanation.
 
 For twenty minutes, add a quantity discrepancy, an admin rule dry run, and forecast error/bias. Add detail to the same story rather than touring every menu.
 
@@ -48,8 +48,8 @@ For twenty minutes, add a quantity discrepancy, an admin rule dry run, and forec
 2. **The operational problem.** Four users and the question each needs answered.
 3. **One meal, one traceable journey.** Forecast → dispatch → receipt → collection → communication → reconciliation.
 4. **Live demonstration.** State the school and scenario before switching to the application.
-5. **Where intelligence enters.** Predictive forecasting, rules and exception detection, AI visual assessment. Use the input → method → output → decision structure below.
-6. **Why this architecture.** Next.js/React interface; Convex data, functions and scheduling; external messaging and AI services.
+5. **Where intelligence enters.** Predictive forecasting, rules and exception detection. Use the input → method → output → decision structure below.
+6. **Why this architecture.** Next.js/React interface; Convex data, functions and scheduling; external messaging services.
 7. **Evaluation and limitations.** Automated correctness evidence versus field accuracy and live integration evidence.
 8. **Contribution.** Connect operational records to timely, explainable decisions.
 
@@ -79,21 +79,17 @@ For a short slot, start with a prepared dispatch and show its record instead of 
 
 ### 3. Record school receipt: `/school/deliveries`
 
-Find the matching docket. Open “Record receipt and view details”. Record received portions and upload a photograph of delivered food. A matching quantity without a reported problem confirms receipt. A quantity mismatch or reported problem creates a dispute for admin resolution.
+Find the matching docket. Open “Record receipt and view details”. Record received portions and press “Record quantities and get receipt code”. A six-digit code appears, valid for 30 minutes.
 
-Say: “The school's receipt establishes the recorded quantity. The image provides supporting evidence, which is assessed separately.”
+Say: “The school records what actually arrived. The quantity stays pending until the supplier proves they were there.”
 
-Use a pre-tested food photograph containing no children or personal documents. Have a previously assessed example ready so an external API response does not consume your speaking time.
+### 4. Supplier redeems the code: `/supplier`
 
-### 4. Explain the photo result
+In the supplier session, open the delivery and enter the school's code. A matching quantity without a reported problem confirms receipt; a mismatch or reported problem creates a dispute for admin resolution.
 
-Show the photo assessment status and findings in delivery details, or a prepared example under the admin overview at `/admin`.
+Say: “Confirmation needs both parties: the school issues the code, the supplier enters it. Five wrong attempts lock the code for 15 minutes. Only confirmed receipts reach the payment file.”
 
-Say: “A pretrained vision-capable model checks whether food is visible, whether the photograph is clear and whether it contains unrelated content. The system validates the structured response and assigns a clear or flagged status. Flags and failures request human review.”
-
-Then say: “This does not certify quantity, nutrition or food safety, and the AI result alone does not change payment eligibility.”
-
-Do not promise a flag will block payment: the implementation explicitly keeps those decisions separate.
+Edge case to show if time allows: enter a wrong code and point at the rejection in the delivery timeline. If a code expires, the school issues a replacement; there is no photo fallback.
 
 ### 5. Record a meal: `/school/service` and `/reader`
 
@@ -153,21 +149,7 @@ Say: “These are explicit inference and policy rules, so I can explain why an a
 
 Limits: slow service may reflect a reader or connectivity issue; a missing tap is not proof a child went hungry. The system identifies records requiring follow-up.
 
-### C. Actual AI: delivery photo assessment
-
-**Input:** an authenticated, stored delivery photograph.
-
-**Method:** a pretrained model accessed through Groq; the configured model identifier is `qwen/qwen3.8-27b`. A constrained prompt and JSON schema request four fields: food visibility, clarity, unrelated content and a description. The backend validates the returned fields.
-
-**Output:** clear or flagged findings; provider/response failures have a separate failed state and retry/review handling.
-
-**Decision:** help humans prioritise evidence review. Receipt quantity, dispute resolution and payment eligibility remain separate.
-
-Say: “My contribution is integrating pretrained visual inference into a controlled workflow, validating its output and preserving human accountability. I did not train the underlying model.”
-
-**Evaluation still needed:** representative real food photographs, human-labelled expected findings, false flags, missed bad evidence, response latency and failure rate. Automated mocked tests establish workflow behavior, not model accuracy.
-
-### D. Optional supporting example: wallet depletion forecasting
+### C. Optional supporting example: wallet depletion forecasting
 
 Balance divided by meal price gives whole meals remaining. Observed meals per school day and the upcoming school calendar estimate when the balance will no longer cover demand. New pupils use an assumed rate; a zero observed rate or insufficient calendar horizon can produce no projected date. Low-balance warnings also use a re-arm margin to avoid repeated warnings near the threshold.
 
@@ -177,11 +159,11 @@ Keep this for questions unless it is a central assessed objective.
 
 **“Where is the intelligence?”**
 
-“In three places: forecasting demand from historical collection patterns, applying explainable rules to operational events, and using a pretrained vision model to assess photo evidence. Each converts an input into a recommendation or action.”
+“In two places: forecasting demand from historical collection patterns, and applying explainable rules to operational events. Each converts an input into a recommendation or action.”
 
 **“Is this machine learning?”**
 
-“The photo assessment uses a pretrained machine-learning model. The demand forecast is a statistical heuristic, and the notification and exception logic is rule-based. I keep those methods distinct.”
+“No trained model is used. The demand forecast is a statistical heuristic, and the notification and exception logic is rule-based. I chose explainable methods because the data is sparse and every decision has to be justified to a supplier or county officer.”
 
 **“Why not train your own forecasting model?”**
 
@@ -189,15 +171,11 @@ Keep this for questions unless it is a central assessed objective.
 
 **“How accurate is it?”**
 
-“The supplier view calculates forecast error and bias for recorded days. The result must be interpreted with its sample size and data source. I have not established field accuracy for photo assessment through the automated tests.” Use an actual measured figure only if you have one.
+“The supplier view calculates forecast error and bias for recorded days. The result must be interpreted with its sample size and data source.” Use an actual measured figure only if you have one.
 
-**“Did you build the AI?”**
+**“Why did you drop photo evidence?”**
 
-“I built the application integration, validated structured output, status handling, retries, access controls and audit workflow. The underlying vision model is pretrained and externally provided.”
-
-**“Can the AI approve a delivery or detect food poisoning?”**
-
-“No. It observes visible evidence. The school records receipt and quantities, admin resolves disputes, and photo status alone does not determine payment eligibility.”
+“A photo can't prove quantity, and it only came from the school. A code the supplier must enter is two-party proof, works with no data connection, and is cheaper. So photos were removed entirely.”
 
 **“Does a discrepancy prove theft?”**
 
@@ -207,9 +185,9 @@ Keep this for questions unless it is a central assessed objective.
 
 “It records a collection associated with an assigned tag. It is not biometric identity verification and does not prove consumption.”
 
-**“What if the internet or AI provider fails?”**
+**“What if the internet fails?”**
 
-“The reader has a local pending-tap queue for later synchronisation. That covers reader capture, not offline operation of every feature. Photo assessment runs separately from receipt confirmation and has retry and human-review paths. The receipt-code fallback preserves the missing-evidence review.”
+“The reader has a local pending-tap queue for later synchronisation. That covers reader capture, not offline operation of every feature. Receipt codes are read aloud between school and driver, so confirmation does not depend on uploading anything.”
 
 **“Why Next.js and Convex?”**
 
@@ -245,7 +223,7 @@ Recovery line: “The live service is not responding. This prepared record shows
 
 ## Closing: about 25 seconds
 
-“Mlo connects a meal's operational journey to the people who need to act. The supplier gets a demand recommendation, the school records receipt and collection, guardians receive relevant communication, and programme managers can investigate discrepancies. Its intelligence combines historical forecasting, explainable rules and advisory visual AI, with a traceable record and human responsibility for consequential decisions.”
+“Mlo connects a meal's operational journey to the people who need to act. The supplier gets a demand recommendation, the school records receipt and collection, guardians receive relevant communication, and programme managers can investigate discrepancies. Its intelligence combines historical forecasting and explainable rules, with a traceable record and human responsibility for consequential decisions.”
 
 ## Tonight and tomorrow
 
@@ -258,8 +236,8 @@ Suggested rehearsal: first run with this script; second run using only the eight
 - Forecast method: `convex/lib/supply.ts`; history collection: `convex/deliveries.ts`.
 - Forecast evaluation and linear run rate: `convex/lib/monitor.ts`.
 - Predicates and notification decisions: `convex/lib/predicate.ts`, `convex/lib/policy.ts`, `convex/rules.ts`.
-- Visual model integration: `convex/deliveryAssessment.ts`, `convex/lib/photoAssessment.ts`, `convex/lib/deliveryWorkflow.ts`.
+- Delivery confirmation (code handshake): `convex/deliveryWorkflow.ts`, `convex/lib/deliveryWorkflow.ts`.
 - Wallet projection: `convex/wallets.ts`, `convex/lib/wallet/threshold.ts`.
-- Demonstrated workflow behavior and mocked AI tests: `convex/deliveryWorkflow.test.ts`.
+- Demonstrated workflow behavior: `convex/deliveryWorkflow.test.ts`.
 
 Verification boundary: source review and local automated tests completed. No live account walkthrough, external model availability check, handset SMS verification, actual NFC test or institutional submission-requirements review was performed for this preparation.

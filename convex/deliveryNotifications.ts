@@ -18,13 +18,14 @@ export async function notifyDelivery(
   delivery: Doc<"deliveries">,
   event: string,
   body: string,
-  escalate = false,
+  audience: ("school" | "supplier" | "admin")[] = ["school"],
 ) {
-  const recipients = [
-    `school:${delivery.schoolId}`,
-    ...(escalate ? [`supplier:${delivery.declaredBy}`, "admin"] : []),
-  ];
-  for (const recipientKey of recipients) {
+  const keys = {
+    school: `school:${delivery.schoolId}`,
+    supplier: `supplier:${delivery.declaredBy}`,
+    admin: "admin",
+  };
+  for (const recipientKey of audience.map((a) => keys[a])) {
     const dedupeKey = `${delivery._id}:${event}:${recipientKey}`;
     if (
       await ctx.db

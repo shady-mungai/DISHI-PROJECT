@@ -8,6 +8,7 @@ import { useAction, useMutation } from "convex/react";
 import type { ChangeEvent } from "react";
 import { useState } from "react";
 import { PAGE_CLASS, TITLE_CLASS } from "@/app/components/ui";
+import { showError } from "@/app/lib/errors";
 
 type RosterRowDraft = {
   fullName: string;
@@ -39,7 +40,6 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
   const [rows, setRows] = useState<RosterRowDraft[] | null>(null);
   const [step, setStep] = useState<"upload" | "confirm" | "done">("upload");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<{
     studentsCreated: number;
     guardiansCreated: number;
@@ -51,7 +51,6 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
 
   async function handleFileSelected(file: File) {
     setBusy(true);
-    setError(null);
     try {
       const uploadUrl = await requestUploadUrl();
       const uploadResponse = await fetch(uploadUrl, {
@@ -60,7 +59,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
         body: file,
       });
       if (!uploadResponse.ok) {
-        throw new Error("Upload failed");
+        throw new Error("The PDF could not be uploaded. Please try again.");
       }
       const { storageId } = (await uploadResponse.json()) as {
         storageId: Id<"_storage">;
@@ -79,9 +78,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
       );
       setStep("confirm");
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not read that PDF",
-      );
+      showError(caught, "Could not read that PDF. Check it is the enrolment list and try again.");
     } finally {
       setBusy(false);
     }
@@ -118,7 +115,6 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       const result = await commitRoster({
         schoolId,
@@ -134,9 +130,7 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
       setSummary(result);
       setStep("done");
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not save the roster",
-      );
+      showError(caught, "Could not save the roster. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -162,7 +156,6 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
             }}
           />
           {busy && <p className="text-sm text-ink/80">Reading the PDF…</p>}
-          {error && <p className="text-sm text-error">{error}</p>}
         </div>
       </Centered>
     );
@@ -293,7 +286,6 @@ function RosterImportFlow({ schoolId }: { schoolId: Id<"schools"> }) {
         >
           Confirm roster ({rows?.length ?? 0})
         </button>
-        {error && <p className="text-sm text-error">{error}</p>}
       </div>
     </div>
   );

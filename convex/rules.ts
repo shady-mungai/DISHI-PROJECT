@@ -75,6 +75,20 @@ export const DEMO_RULES: ReadonlyArray<RuleSeed> = [
     enabled: true,
   },
   {
+    key: "guardian.marked_absent",
+    eventType: "meal.absent",
+    predicate: ALWAYS,
+    audience: "guardian",
+    templates: {
+      en: "{{child}} was marked absent at {{school}} on {{date}}. Please check in.",
+      sw: "{{child}} ameandikwa hayupo {{school}} tarehe {{date}}. Tafadhali fuatilia.",
+    },
+    templateVersion: 1,
+    channel: "sms",
+    priority: MISSED_PRIORITY,
+    enabled: true,
+  },
+  {
     key: "guardian.wallet_topped_up",
     eventType: "wallet.topped_up",
     predicate: ALWAYS,

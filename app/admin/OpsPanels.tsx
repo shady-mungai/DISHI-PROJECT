@@ -12,6 +12,7 @@ import {
 } from "@/app/components/ui";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
+import { showError } from "@/app/lib/errors";
 
 type Range = { from: string; to: string };
 
@@ -79,7 +80,6 @@ export function SettingsPanel() {
   const settings = useQuery(api.admin.listSettings);
   const setSetting = useMutation(api.admin.setSetting);
   const [saved, setSaved] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function save(
     key: string,
@@ -95,14 +95,11 @@ export function SettingsPanel() {
     if (value === current) {
       return;
     }
-    setError(null);
     try {
       await setSetting({ key, value });
       setSaved(`${key} saved.`);
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not save setting",
-      );
+      showError(caught, "Could not save the setting. Please try again.");
     }
   }
 
@@ -110,7 +107,6 @@ export function SettingsPanel() {
     <section className="flex flex-col gap-2">
       <h2 className={SECTION_TITLE_CLASS}>Settings and retention</h2>
       {saved && <p role="status">{saved}</p>}
-      {error && <p className={ERROR_CLASS}>{error}</p>}
       <ul className="flex flex-col gap-1 text-sm">
         {settings?.map((setting) => (
           <li key={setting.key} className={ROW_CLASS}>
@@ -149,7 +145,6 @@ export function RevokeButton({
 }) {
   const revoke = useMutation(api.admin.revokeDevice);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   async function confirmRevoke() {
     if (
       !window.confirm(
@@ -158,13 +153,10 @@ export function RevokeButton({
     )
       return;
     setBusy(true);
-    setError(null);
     try {
       await revoke({ deviceRef });
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not revoke reader.",
-      );
+      showError(caught, "Could not revoke the reader. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -189,11 +181,6 @@ export function RevokeButton({
       >
         {busy ? "Revoking…" : "Revoke"}
       </button>
-      {error && (
-        <p role="alert" className={ERROR_CLASS}>
-          {error}
-        </p>
-      )}
     </div>
   );
 }

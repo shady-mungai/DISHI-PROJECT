@@ -84,7 +84,7 @@ const PILOT_FAMILIES = [
 ] as const;
 const PILOT_CLASS_NAME = "Grade 6B";
 const PILOT_OPENING_BALANCE_KES = 100;
-const ROSTER_TABLES = [
+export const ROSTER_TABLES = [
   "tags",
   "wallets",
   "expectations",

@@ -14,6 +14,8 @@ export function publicDelivery(row: Doc<"deliveries">) {
     serviceDate: row.serviceDate,
     portions: row.portions,
     portionsReceived: row.portionsReceived,
+    containers: row.containers,
+    netKg: row.netKg,
     docketRef: row.docketRef,
     vehicle: row.vehicle,
     reference: row.reference ?? row.docketRef,
@@ -27,16 +29,8 @@ export function publicDelivery(row: Doc<"deliveries">) {
     receiptMethod: row.receiptMethod,
     reportedProblem: row.reportedProblem,
     note: row.note,
-    evidenceId: row.evidenceId,
-    missingEvidence: row.missingEvidence,
     reviewRequired: row.reviewRequired,
     reviewResolvedAt: row.reviewResolvedAt,
-    photoReview: row.photoReview,
-    photoModel: row.photoModel,
-    photoFindings: row.photoFindings,
-    photoAssessedAt: row.photoAssessedAt,
-    photoError: row.photoError,
-    photoAttempts: row.photoAttempts,
   };
 }
 async function enrich(ctx: QueryCtx, rows: Doc<"deliveries">[]) {

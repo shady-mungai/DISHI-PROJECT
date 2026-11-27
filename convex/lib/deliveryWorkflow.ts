@@ -6,8 +6,6 @@ import { sha256Hex } from "./hmac";
 
 export const ARRIVAL_MS = 30 * 60_000;
 export const CODE_COOLDOWN_MS = 15 * 60_000;
-export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
-export const PHOTO_MODEL = "qwen/qwen3.8-27b";
 
 export function checkPortions(n: number, allowZero = true) {
   if (!Number.isSafeInteger(n) || n < (allowZero ? 0 : 1) || n > 1_000_000)
@@ -107,25 +105,4 @@ export function receiptStatus(
   return portions === delivery.portions && !problem
     ? ("confirmed" as const)
     : ("disputed" as const);
-}
-export function imageType(bytes: Uint8Array): string | null {
-  if (
-    bytes.length >= 12 &&
-    bytes[0] === 0xff &&
-    bytes[1] === 0xd8 &&
-    bytes[2] === 0xff
-  )
-    return "image/jpeg";
-  if (
-    bytes.length >= 24 &&
-    [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => bytes[i] === v)
-  )
-    return "image/png";
-  if (
-    bytes.length >= 16 &&
-    new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" &&
-    new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP"
-  )
-    return "image/webp";
-  return null;
 }

@@ -7,6 +7,7 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { BUTTON_CLASS, INPUT_CLASS, TITLE_CLASS } from "@/app/components/ui";
+import { showError, toastError, userMessage } from "@/app/lib/errors";
 
 export function Centered({ children }: { children: ReactNode }) {
   return (
@@ -57,25 +58,21 @@ function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setPending(true);
-    setError(null);
     try {
       const result =
         mode === "sign-in"
           ? await authClient.signIn.email({ email, password })
           : await authClient.signUp.email({ email, password, name: email });
       if (result.error) {
-        setError(result.error.message ?? "Something went wrong");
+        toastError(result.error.message ?? "Sign-in did not work. Check your email and password.");
       }
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not reach the server",
-      );
+      showError(caught, "Could not reach the server. Please try again.");
     } finally {
       setPending(false);
     }
@@ -123,11 +120,6 @@ function SignInForm() {
             }
             className={INPUT_CLASS}
           />
-          {error && (
-            <p role="alert" className="text-sm text-error">
-              {error}
-            </p>
-          )}
           <button type="submit" disabled={pending} className={BUTTON_CLASS}>
             {pending
               ? "Please wait…"
@@ -166,9 +158,7 @@ function ProfileGate({
       bootstrapProfile({ displayName: "School staff" }).catch(
         (caught: unknown) => {
           setBootstrapError(
-            caught instanceof Error
-              ? caught.message
-              : "Could not set up your account",
+            userMessage(caught, "Could not set up your account"),
           );
         },
       );

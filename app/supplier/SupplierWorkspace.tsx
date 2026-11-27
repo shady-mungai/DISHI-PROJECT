@@ -17,6 +17,7 @@ import {
 import { useQuery } from "convex/react";
 import Link from "@/app/components/DateLink";
 import { useUrlDate } from "@/app/components/useUrlDate";
+import { InsightsPanel } from "@/app/supplier/InsightsPanel";
 
 import {
   ActiveDeliveries,
@@ -115,7 +116,7 @@ function SupplierPanel({
       {page === "Overview" &&
         overview?.unconfirmed.map((delivery) => (
           <p key={delivery._id} className={ALERT_CLASS} role="status">
-            {delivery.schoolCode} has not confirmed docket {delivery.docketRef}{" "}
+            {delivery.schoolCode} has not confirmed delivery {delivery.docketRef}{" "}
             ({delivery.portions} portions, {delivery.serviceDate}) — expected by{" "}
             {new Date(delivery.expectedConfirmBy).toLocaleTimeString("en-KE", {
               timeZone: "Africa/Nairobi",
@@ -158,6 +159,8 @@ function SupplierPanel({
           </div>
         </section>
       )}
+
+      {page === "Dish and attendance insights" && <InsightsPanel from={from} to={to} />}
 
       {page === "Reconciliation" && (
         <section className="flex flex-col gap-2">

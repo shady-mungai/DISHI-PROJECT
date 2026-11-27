@@ -6,7 +6,9 @@ import { addDays, toServiceDate } from "@/convex/lib/dates";
 import { SchoolGate } from "@/app/components/SchoolGate";
 import { OverridePanel } from "@/app/service-day/OverridePanel";
 import { ReaderHealth } from "@/app/service-day/ReaderHealth";
+import { RegisterPanel } from "@/app/service-day/RegisterPanel";
 import { RosterPanel } from "@/app/service-day/RosterPanel";
+import { TastePanel } from "@/app/school/TastePanel";
 import { useAction, useMutation, useQuery } from "convex/react";
 import Link from "@/app/components/DateLink";
 import { useUrlDate } from "@/app/components/useUrlDate";
@@ -25,6 +27,7 @@ import {
   DeliveryInbox,
   ForecastPanel,
 } from "@/app/deliveries/DeliveryOperations";
+import { showError } from "@/app/lib/errors";
 
 const FIELD_CLASS =
   "min-h-11 w-24 rounded-control border-2 border-green px-2 py-1";
@@ -90,7 +93,7 @@ function ServiceDayPanel({
   const [batchSize, setBatchSize] = useState(DEFAULT_BATCH_SIZE);
 
   const expected = summary
-    ? summary.pending + summary.fulfilled + summary.missed
+    ? summary.pending + summary.fulfilled + summary.missed + summary.absent
     : undefined;
 
   async function trigger(run: () => Promise<string>) {
@@ -99,7 +102,8 @@ function ServiceDayPanel({
     try {
       setMessage(await run());
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Trigger failed");
+      setMessage(null);
+      showError(caught, "That action did not finish. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -214,6 +218,10 @@ function ServiceDayPanel({
                   <dt>Missed</dt>
                   <dd>{summary.missed.toLocaleString("en-KE")}</dd>
                 </div>
+                <div>
+                  <dt>Absent</dt>
+                  <dd>{summary.absent.toLocaleString("en-KE")}</dd>
+                </div>
               </dl>
               {expected === 0 && (
                 <p className="mt-3 text-sm text-muted">
@@ -233,6 +241,8 @@ function ServiceDayPanel({
           </div>
         </>
       )}
+      {page === "Attendance register" && <RegisterPanel schoolId={schoolId} />}
+      {page === "Taste insights" && <TastePanel schoolId={schoolId} />}
       {page === "Communications" && <DeliveryInbox />}
       {page === "Readers" && (
         <>

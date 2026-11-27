@@ -133,7 +133,7 @@ describe("county dashboard: ranked variance, streaks, totals, drill, export (D12
     expect(result).toMatchObject({ status: "computed", variancePct: 40 });
     const [exceeded] = await eventsOfType(t, "reconciliation.variance_exceeded");
     expect(exceeded.payload).toEqual({ school_id: world.leaky, variance_pct: 40, streak_days: STREAK_DAYS });
-    expect(await t.run(async (ctx) => await flagIntegrity(ctx, { schoolId: world.leaky, serviceDate: TODAY }))).toEqual({ varianceExceeded: false, overrideRateExceeded: false });
+    expect(await t.run(async (ctx) => await flagIntegrity(ctx, { schoolId: world.leaky, serviceDate: TODAY, consumed: 60, received: 100 }))).toEqual({ varianceExceeded: false, overrideRateExceeded: false, consumedExceedsReceived: false });
     expect(await eventsOfType(t, "reconciliation.variance_exceeded")).toHaveLength(1);
     expect((await overview(t)).rows[0].streakDays).toBe(STREAK_DAYS);
   });
@@ -141,8 +141,19 @@ describe("county dashboard: ranked variance, streaks, totals, drill, export (D12
   test("a steady school never trips the streak (GV-03)", async () => {
     const t = convexTest(schema, modules);
     const world = await seedWorld(t);
-    expect(await t.run(async (ctx) => await flagIntegrity(ctx, { schoolId: world.steady, serviceDate: TODAY }))).toEqual({ varianceExceeded: false, overrideRateExceeded: false });
+    expect(await t.run(async (ctx) => await flagIntegrity(ctx, { schoolId: world.steady, serviceDate: TODAY, consumed: 0, received: null }))).toEqual({ varianceExceeded: false, overrideRateExceeded: false, consumedExceedsReceived: false });
     expect(await eventsOfType(t, "reconciliation.variance_exceeded")).toHaveLength(0);
+  });
+
+  test("more meals eaten than portions received is flagged the same day, exactly once", async () => {
+    const t = convexTest(schema, modules);
+    const world = await seedWorld(t);
+    await leakyStudentsAndDelivery(t, world, 16, 40);
+    await t.run(async (ctx) => await reconcileDay(ctx, { schoolId: world.leaky, serviceDate: TODAY }));
+    const [flag] = await eventsOfType(t, "integrity.consumed_exceeds_received");
+    expect(flag.payload).toEqual({ school_id: world.leaky, consumed: 40, received: 16, excess: 24 });
+    await t.run(async (ctx) => await reconcileDay(ctx, { schoolId: world.leaky, serviceDate: TODAY }));
+    expect(await eventsOfType(t, "integrity.consumed_exceeds_received")).toHaveLength(1);
   });
 
   test("the export carries one line per school in ranked order (GV-06, FR-704)", async () => {

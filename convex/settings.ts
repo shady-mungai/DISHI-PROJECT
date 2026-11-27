@@ -3,6 +3,7 @@ import { internalMutation } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { settingValue } from "./schema";
 import type { Infer } from "convex/values";
+import { DEFAULT_PORTION_GRAMS } from "./lib/portions";
 
 export type SettingValue = Infer<typeof settingValue>;
 
@@ -20,6 +21,9 @@ export const SettingKey = {
   QuietHoursEndHour: "quietHoursEndHour",
   StalledServiceThresholdPct: "stalledServiceThresholdPct",
   VarianceTolerancePct: "varianceTolerancePct",
+  DishInsightsMinDays: "dishInsightsMinDays",
+  TasteLikedMaxSkipPct: "tasteLikedMaxSkipPct",
+  TasteDislikedMinSkipPct: "tasteDislikedMinSkipPct",
   VarianceStreakDays: "varianceStreakDays",
   OverrideRateTolerancePct: "overrideRateTolerancePct",
   ClockSkewToleranceSeconds: "clockSkewToleranceSeconds",
@@ -27,6 +31,7 @@ export const SettingKey = {
   SmsCostPerSegmentKes: "smsCostPerSegmentKes",
   DeliveryConfirmWindowMinutes: "deliveryConfirmWindowMinutes",
   SupplierPortionRateKes: "supplierPortionRateKes",
+  PortionGrams: "portionGrams",
   ReaderSilentHours: "readerSilentHours",
   DeliveryMaxAttempts: "deliveryMaxAttempts",
   DeliveryRetryBaseSeconds: "deliveryRetryBaseSeconds",
@@ -109,6 +114,16 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     description: "Reconciliation variance considered actionable",
   },
   {
+    key: SettingKey.TasteLikedMaxSkipPct,
+    value: 10,
+    description: "Skip rate below which a dish counts as liked",
+  },
+  {
+    key: SettingKey.TasteDislikedMinSkipPct,
+    value: 30,
+    description: "Skip rate above which a dish counts as disliked",
+  },
+  {
     key: SettingKey.VarianceStreakDays,
     value: 3,
     description: "Consecutive breach days before escalation",
@@ -143,6 +158,11 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     key: SettingKey.SupplierPortionRateKes,
     value: 25,
     description: "Amount paid to the supplier per confirmed portion",
+  },
+  {
+    key: SettingKey.PortionGrams,
+    value: DEFAULT_PORTION_GRAMS,
+    description: "Cooked grams in one pupil portion; dispatch converts net kg to portions with it",
   },
   {
     key: SettingKey.ReaderSilentHours,

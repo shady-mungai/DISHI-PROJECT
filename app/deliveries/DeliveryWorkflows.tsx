@@ -24,6 +24,7 @@ import {
   SECTION_TITLE_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
+import { showError } from "@/app/lib/errors";
 
 function useTrigger() {
   const [busy, setBusy] = useState(false);
@@ -34,7 +35,8 @@ function useTrigger() {
     try {
       setMessage(await run());
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : "Request failed");
+      setMessage(null);
+      showError(caught, "That did not go through. Please try again.");
     } finally {
       setBusy(false);
     }

@@ -5,9 +5,8 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { authClient } from "@/app/auth-client";
-import { convexSiteUrl } from "@/app/lib/convex-urls";
 import { addDays, toServiceDate } from "@/convex/lib/dates";
+import { portionsFromKg } from "@/convex/lib/portions";
 import {
   ALERT_CLASS,
   BUTTON_CLASS,
@@ -16,9 +15,11 @@ import {
   MUTED_CLASS,
   PANEL_CLASS,
   SECONDARY_BUTTON_CLASS,
+  DISCLOSURE_SUMMARY_CLASS,
   SECTION_TITLE_CLASS,
   TITLE_CLASS,
 } from "@/app/components/ui";
+import { showError } from "@/app/lib/errors";
 
 type Delivery = FunctionReturnType<typeof api.deliveryDashboard.active>[number];
 const DeliveryNotice = createContext<((message: string) => void) | null>(null);
@@ -36,33 +37,26 @@ function useTask() {
   const lock = useRef(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
   async function run(fn: () => Promise<string>) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
-    setError("");
     setMessage("");
     try {
       setMessage(await fn());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Request failed. Try again.");
+      showError(e, "That did not go through. Please try again.");
     } finally {
       lock.current = false;
       setBusy(false);
     }
   }
-  return { busy, message, error, run };
+  return { busy, message, run };
 }
 function Feedback({ task }: { task: ReturnType<typeof useTask> }) {
   return (
     <>
       {task.busy && <p role="status">Saving…</p>}
-      {task.error && (
-        <p role="alert" className="text-error break-words">
-          {task.error}
-        </p>
-      )}
       {task.message && <p role="status">{task.message}</p>}
     </>
   );
@@ -76,115 +70,144 @@ function useRequestId() {
     return ref.current.id;
   };
 }
-async function photoFetch(query: string, init?: RequestInit) {
-  const { data } = await authClient.convex.token({
-    fetchOptions: { throw: false },
-  });
-  if (!data?.token) throw new Error("Sign in again to access delivery photos.");
-  const headers = new Headers(init?.headers);
-  headers.set("Authorization", `Bearer ${data.token}`);
-  return await fetch(`${convexSiteUrl}/delivery-photo${query}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
-}
 
 export function SupplierDispatch() {
   const schools = useQuery(api.deliveries.listSchools);
   const dispatch = useMutation(api.deliveryWorkflow.dispatch);
+  const recentDishes = useQuery(api.supplier.recentDishes);
+  const grams = useQuery(api.supplier.portionGrams);
   const task = useTask();
   const key = useRequestId();
   const [schoolId, setSchool] = useState("");
-  const [portions, setPortions] = useState("");
+  const [containers, setContainers] = useState("");
+  const [netKg, setNetKg] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [docketRef, setDocket] = useState("");
+  const [dish, setDish] = useState("");
   const [result, setResult] = useState<{
     reference: string;
+    portions: number;
     expectedArrivalAt: number;
   } | null>(null);
+  const kg = Number(netKg);
+  const portions = grams && kg > 0 ? portionsFromKg(kg, grams) : null;
   return (
     <section className="flex flex-col gap-4">
       <h1 className={TITLE_CLASS}>Dispatch a delivery</h1>
-      <p>
-        Arrival is expected within 30 minutes. The school records and confirms
-        what it receives.
-      </p>
-      <form
-        className="grid gap-4 sm:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void task.run(async () => {
-            const input = {
-              schoolId: schoolId as Id<"schools">,
-              portions: Number(portions),
-              vehicle,
-              docketRef,
-            };
-            const sent = await dispatch({ ...input, requestId: key(input) });
-            setResult(sent);
-            setPortions("");
-            setDocket("");
-            return "Dispatch recorded. School notification queued.";
-          });
-        }}
+      <div
+        role="note"
+        className="rounded-control border-l-4 border-primary bg-surface px-4 py-3 text-sm"
       >
-        <label className="flex min-w-0 flex-col gap-1">
-          School
-          <select
-            required
-            value={schoolId}
-            onChange={(e) => setSchool(e.target.value)}
-            className={INPUT_CLASS}
-          >
-            <option value="">Choose school</option>
-            {schools?.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name} ({s.code})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          Portions dispatched
-          <input
-            required
-            type="number"
-            min="1"
-            max="1000000"
-            step="1"
-            value={portions}
-            onChange={(e) => setPortions(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Vehicle
-          <input
-            required
-            maxLength={100}
-            value={vehicle}
-            onChange={(e) => setVehicle(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Docket reference
-          <input
-            required
-            maxLength={100}
-            value={docketRef}
-            onChange={(e) => setDocket(e.target.value)}
-            className={INPUT_CLASS}
-          />
-        </label>
-        <button
-          disabled={task.busy || !schools?.length}
-          className={BUTTON_CLASS}
+        <p className="font-semibold">How dispatch works</p>
+        <p>
+          Weigh the food, then enter the containers and net kilograms. Dishi
+          turns kilograms into pupil portions. The school checks the container
+          count on arrival, within 30 minutes, and confirms what it received.
+          Payment follows confirmed portions.
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <form
+          className="grid gap-4 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void task.run(async () => {
+              const input = {
+                schoolId: schoolId as Id<"schools">,
+                containers: Number(containers),
+                netKg: Number(netKg),
+                vehicle,
+                dish,
+              };
+              const sent = await dispatch({ ...input, requestId: key(input) });
+              setResult(sent);
+              setContainers("");
+              setNetKg("");
+              return "Dispatch recorded. School notification queued.";
+            });
+          }}
         >
-          Dispatch delivery
-        </button>
-      </form>
+          <label className="flex min-w-0 flex-col gap-1">
+            School
+            <select
+              required
+              value={schoolId}
+              onChange={(e) => setSchool(e.target.value)}
+              className={INPUT_CLASS}
+            >
+              <option value="">Choose school</option>
+              {schools?.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} ({s.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            Containers
+            <input
+              required
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              value={containers}
+              onChange={(e) => setContainers(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            Net food weight (kg, without containers)
+            <input
+              required
+              type="number"
+              min="0.1"
+              max="100000"
+              step="0.1"
+              value={netKg}
+              onChange={(e) => setNetKg(e.target.value)}
+              className={INPUT_CLASS}
+            />
+            {portions !== null && (
+              <span className={`${MUTED_CLASS} lg:hidden`}>
+                = {portions} portions
+              </span>
+            )}
+          </label>
+          <label className="flex flex-col gap-1">
+            Vehicle
+            <input
+              required
+              maxLength={100}
+              value={vehicle}
+              onChange={(e) => setVehicle(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            Dish served
+            <input
+              maxLength={60}
+              list="recent-dishes"
+              placeholder="e.g. githeri"
+              value={dish}
+              onChange={(e) => setDish(e.target.value)}
+              className={INPUT_CLASS}
+            />
+            <datalist id="recent-dishes">
+              {recentDishes?.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </label>
+          <button
+            disabled={task.busy || !schools?.length}
+            className={BUTTON_CLASS}
+          >
+            Dispatch delivery
+          </button>
+        </form>
+        <PortionCalculator kg={kg} grams={grams} portions={portions} />
+      </div>
       <Feedback task={task} />
       {result && (
         <div className={PANEL_CLASS}>
@@ -192,6 +215,7 @@ export function SupplierDispatch() {
           <p className={`${CODE_CLASS} [overflow-wrap:anywhere]`}>
             {result.reference}
           </p>
+          <p>Counted as {result.portions} portions.</p>
           <p>Expected by {receiptTime(result.expectedArrivalAt)} EAT.</p>
         </div>
       )}
@@ -199,27 +223,66 @@ export function SupplierDispatch() {
   );
 }
 
+function PortionCalculator({
+  kg,
+  grams,
+  portions,
+}: {
+  kg: number;
+  grams: number | undefined;
+  portions: number | null;
+}) {
+  if (grams === undefined)
+    return <aside className={PANEL_CLASS}>Loading serving size…</aside>;
+  const leftover =
+    portions === null ? 0 : Math.round(kg * 1000) - portions * grams;
+  return (
+    <aside className={PANEL_CLASS} aria-labelledby="calculator-title">
+      <h2 id="calculator-title" className={SECTION_TITLE_CLASS}>
+        Portion calculator
+      </h2>
+      <p aria-live="polite" className="text-2xl font-semibold text-green">
+        {portions === null
+          ? "Enter the net kg"
+          : `${kg} kg → ${portions} portions`}
+      </p>
+      {leftover > 0 && (
+        <p className={MUTED_CLASS}>
+          {leftover} g left over, less than one plate, so it is not counted.
+        </p>
+      )}
+      <p>
+        🍲 One portion is <strong>{grams} g</strong>, one learner&apos;s plate.
+      </p>
+      <ul className="flex flex-col gap-1 text-sm">
+        {[1, 10, 50].map((example) => (
+          <li key={example}>
+            {example} kg feeds <strong>{portionsFromKg(example, grams)}</strong>{" "}
+            learners
+          </li>
+        ))}
+      </ul>
+      <p className={MUTED_CLASS}>
+        Weigh the food, not the sufuria: weigh it full, then take away the empty
+        weight.
+      </p>
+    </aside>
+  );
+}
+
 function ReceiptForm({ delivery }: { delivery: Delivery }) {
-  const notify = useContext(DeliveryNotice);
-  const submit = useMutation(api.deliveryWorkflow.submitReceipt);
   const requestCode = useMutation(api.deliveryWorkflow.requestCode);
   const task = useTask();
-  const key = useRequestId();
-  const uploadId = useRef("");
   const [portions, setPortions] = useState(
     delivery.portionsReceived?.toString() ?? "",
   );
   const [problem, setProblem] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [evidenceId, setEvidence] = useState<Id<"deliveryEvidence"> | null>(
-    null,
-  );
   const [fallback, setFallback] = useState<{
     code: string | null;
     expiresAt: number;
   } | null>(null);
   const [reportProblem, setReportProblem] = useState(false);
-  async function record(fallbackOnly: boolean) {
+  async function record() {
     if (
       !portions ||
       !Number.isSafeInteger(Number(portions)) ||
@@ -235,67 +298,19 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
       portionsReceived: Number(portions),
       problem: reportProblem ? problem.trim() : "",
     };
-    if (fallbackOnly) {
-      const result = await requestCode({
-        ...input,
-        requestId: crypto.randomUUID(),
-      });
-      setFallback(result);
-      return "Quantities recorded. Give this single-use code to the supplier. A new code replaces the previous code.";
-    }
-    let evidence = evidenceId;
-    if (!evidence) {
-      if (!file)
-        throw new Error(
-          "Choose a delivery photo, or request a receipt code below.",
-        );
-      if (
-        file.size > 10 * 1024 * 1024 ||
-        !["image/jpeg", "image/png", "image/webp"].includes(file.type)
-      )
-        throw new Error(
-          "Choose a JPEG, PNG or WebP photo no larger than 10 MB. You can request a code if upload is unavailable.",
-        );
-      if (!uploadId.current) uploadId.current = crypto.randomUUID();
-      const response = await photoFetch("", {
-        method: "POST",
-        headers: {
-          "Content-Type": file.type,
-          "X-Delivery-Id": delivery._id,
-          "X-Request-Id": uploadId.current,
-        },
-        body: file,
-      });
-      const body = (await response.json()) as {
-        error?: string;
-        evidenceId?: Id<"deliveryEvidence">;
-      };
-      if (!response.ok || !body.evidenceId)
-        throw new Error(
-          body.error ??
-            "Upload failed. Retry with the same photo or request a receipt code.",
-        );
-      evidence = body.evidenceId;
-      setEvidence(evidence);
-    }
-    const result = await submit({
+    const result = await requestCode({
       ...input,
-      evidenceId: evidence,
-      requestId: key({ ...input, evidence }),
+      requestId: crypto.randomUUID(),
     });
-    const message =
-      result.status === "confirmed"
-        ? "Delivery confirmed. Photo review runs separately."
-        : "Receipt recorded. Central admin will resolve the discrepancy or reported problem.";
-    notify?.(message);
-    return message;
+    setFallback(result);
+    return "Quantities recorded. Give this single-use code to the supplier. A new code replaces the previous code.";
   }
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void task.run(() => record(false));
+        void task.run(() => record());
       }}
     >
       <h3 className={SECTION_TITLE_CLASS}>Record receipt</h3>
@@ -333,47 +348,15 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
           />
         </label>
       )}
-      <label className="flex min-w-0 flex-col gap-1">
-        Receipt photo
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          capture="environment"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
-            setEvidence(null);
-            uploadId.current = "";
-          }}
-          className={`${INPUT_CLASS} w-full min-w-0`}
-          aria-describedby={`photo-help-${delivery._id}`}
-        />
-      </label>
-      <p id={`photo-help-${delivery._id}`} className={MUTED_CLASS}>
-        JPEG, PNG or WebP, up to 10 MB. Photograph the delivered food. Avoid
-        including children or personal documents.
-      </p>
       <button disabled={task.busy} className={BUTTON_CLASS}>
-        {reportProblem
-          ? "Submit receipt and report problem"
-          : "Confirm received quantities"}
+        {fallback
+          ? "Replace receipt code"
+          : "Record quantities and get receipt code"}
       </button>
       <p className={MUTED_CLASS}>
-        A quantity difference goes to central admin for resolution. Photo
-        assessment does not certify quantity or food safety.
+        Give the code to the supplier. Delivery is confirmed when they enter it.
+        A quantity difference goes to central admin for resolution.
       </p>
-      <div className="border-t border-green/30 pt-3">
-        <p className="mb-2">Photo upload unavailable?</p>
-        <button
-          type="button"
-          disabled={task.busy}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() => void task.run(() => record(true))}
-        >
-          {fallback
-            ? "Replace receipt code"
-            : "Record quantities and request code"}
-        </button>
-      </div>
       <Feedback task={task} />
       {fallback && (
         <div className={PANEL_CLASS}>
@@ -382,8 +365,7 @@ function ReceiptForm({ delivery }: { delivery: Delivery }) {
           </p>
           <p>
             Expires {receiptTime(fallback.expiresAt)} EAT. The supplier enters
-            it against this delivery. Missing photo evidence remains open for
-            review.
+            it against this delivery.
           </p>
         </div>
       )}
@@ -431,52 +413,9 @@ function RedeemForm({ delivery }: { delivery: Delivery }) {
     </form>
   );
 }
-function PrivatePhoto({ id }: { id: Id<"deliveryEvidence"> }) {
-  const [url, setUrl] = useState("");
-  const task = useTask();
-  useEffect(
-    () => () => {
-      if (url) URL.revokeObjectURL(url);
-    },
-    [url],
-  );
-  return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        disabled={task.busy}
-        className={SECONDARY_BUTTON_CLASS}
-        onClick={() =>
-          void task.run(async () => {
-            const response = await photoFetch(`?id=${encodeURIComponent(id)}`);
-            if (!response.ok)
-              throw new Error("Photo could not be loaded. Try again.");
-            setUrl(URL.createObjectURL(await response.blob()));
-            return "Photo loaded.";
-          })
-        }
-      >
-        View receipt photo
-      </button>
-      <Feedback task={task} />
-      {url && (
-        // Private authenticated blob URLs must stay in this browser.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt="Food photographed by the receiving school"
-          width={640}
-          height={480}
-          className="max-h-96 w-full rounded-control object-contain"
-        />
-      )}
-    </div>
-  );
-}
 function AdminDecision({ delivery }: { delivery: Delivery }) {
   const notify = useContext(DeliveryNotice);
   const resolve = useMutation(api.deliveryWorkflow.resolve);
-  const retry = useMutation(api.deliveryAssessment.retry);
   const task = useTask();
   const key = useRequestId();
   const [reason, setReason] = useState("");
@@ -499,7 +438,7 @@ function AdminDecision({ delivery }: { delivery: Delivery }) {
       <h3 className={SECTION_TITLE_CLASS}>Resolve review</h3>
       <p>
         Confirming makes recorded received portions eligible for the payment
-        file. Photo flags alone never change eligibility.
+        file.
       </p>
       <label className="flex flex-col gap-1">
         Decision
@@ -509,7 +448,7 @@ function AdminDecision({ delivery }: { delivery: Delivery }) {
           onChange={(e) => setDecision(e.target.value as typeof decision)}
         >
           <option value="reviewed">
-            Close evidence review; keep delivery status
+            Close review; keep delivery status
           </option>
           <option value="confirm">Confirm received portions</option>
           <option value="dispute">Keep delivery disputed</option>
@@ -528,21 +467,6 @@ function AdminDecision({ delivery }: { delivery: Delivery }) {
       <button disabled={task.busy || !reason.trim()} className={BUTTON_CLASS}>
         Record resolution
       </button>
-      {delivery.photoReview === "failed" && (
-        <button
-          type="button"
-          disabled={task.busy || !reason.trim()}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() =>
-            void task.run(async () => {
-              await retry({ deliveryId: delivery._id, reason });
-              return "Photo assessment queued again.";
-            })
-          }
-        >
-          Retry photo assessment
-        </button>
-      )}
       <Feedback task={task} />
     </form>
   );
@@ -570,42 +494,13 @@ function DeliveryDetail({
           in the historical confirmation form.
         </p>
       )}
-      {delivery.evidenceId && role !== "county" && (
-        <PrivatePhoto id={delivery.evidenceId} />
-      )}
       {delivery.reportedProblem && (
         <p className={ALERT_CLASS}>
           Reported problem: {delivery.reportedProblem}
         </p>
       )}
-      {delivery.photoReview && (
-        <div>
-          <p>
-            Photo review: <strong>{delivery.photoReview}</strong> ·{" "}
-            {delivery.photoAttempts ?? 0} attempt(s)
-          </p>
-          <p className={MUTED_CLASS}>
-            {delivery.photoModel}
-            {delivery.photoAssessedAt
-              ? ` · ${receiptTime(delivery.photoAssessedAt)} EAT`
-              : ""}
-          </p>
-          {delivery.photoFindings && (
-            <>
-              <p>{delivery.photoFindings.description}</p>
-              <p>
-                Food visible:{" "}
-                {delivery.photoFindings.foodVisible ? "yes" : "no"}; clarity:{" "}
-                {delivery.photoFindings.clarity}; unrelated content:{" "}
-                {delivery.photoFindings.unrelatedContent ? "yes" : "no"}.
-              </p>
-            </>
-          )}
-          {delivery.photoError && <p>{delivery.photoError}</p>}
-        </div>
-      )}
       {detail?.codeExpiresAt && (
-        <p>Fallback code expires {receiptTime(detail.codeExpiresAt)} EAT.</p>
+        <p>Receipt code expires {receiptTime(detail.codeExpiresAt)} EAT.</p>
       )}
       {detail?.cooldownUntil && (
         <p>
@@ -657,9 +552,11 @@ export function DeliveryCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {delivery.schoolName} · {delivery.docketRef}
+            {delivery.schoolName} · {delivery.reference}
           </h3>
-          <p className={MUTED_CLASS}>{delivery.reference}</p>
+          {delivery.docketRef !== delivery.reference && (
+            <p className={MUTED_CLASS}>Supplier docket {delivery.docketRef}</p>
+          )}
         </div>
         <span className={overdue ? ALERT_CLASS : "font-medium text-green"}>
           {overdue
@@ -675,6 +572,12 @@ export function DeliveryCard({
         {delivery.portions}{" "}
         <span className="text-base font-normal">dispatched</span>
       </p>
+      {delivery.containers !== undefined && (
+        <p>
+          In {delivery.containers} containers · {delivery.netKg} kg net. Check
+          the container count on arrival.
+        </p>
+      )}
       <p>
         Received: {delivery.portionsReceived ?? "Not recorded"} · Served for
         school day: {delivery.servedForDay ?? "Not reconciled"}
@@ -683,15 +586,6 @@ export function DeliveryCard({
         Dispatched {receiptTime(delivery.dispatchedAt)} · expected by{" "}
         {receiptTime(delivery.expectedArrivalAt)} EAT.
       </p>
-      {delivery.missingEvidence && (
-        <p className={ALERT_CLASS}>
-          Photo evidence missing
-          {delivery.reviewResolvedAt
-            ? " · reviewed by admin"
-            : " · review needed"}
-        </p>
-      )}
-      {delivery.photoReview && <p>Photo assessment: {delivery.photoReview}</p>}
       <button
         type="button"
         aria-expanded={expanded}
@@ -768,65 +662,69 @@ export function DeliveryHistory({
     { initialNumItems: 10 },
   );
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className={SECTION_TITLE_CLASS}>Delivery history</h2>
-      <div className="flex flex-wrap gap-3">
-        {!schoolId && (
-          <label className="flex min-w-0 flex-col gap-1">
-            School filter
-            <select
+    <details>
+      <summary className={DISCLOSURE_SUMMARY_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Delivery history</h2>
+      </summary>
+      <div className="mt-4 flex flex-col gap-4">
+        <div className="flex flex-wrap gap-3">
+          {!schoolId && (
+            <label className="flex min-w-0 flex-col gap-1">
+              School filter
+              <select
+                className={INPUT_CLASS}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="">All pilot schools</option>
+                {schools?.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex flex-col gap-1">
+            History from
+            <input
+              type="date"
               className={INPUT_CLASS}
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="">All pilot schools</option>
-              {schools?.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
           </label>
+          <label className="flex flex-col gap-1">
+            History to
+            <input
+              type="date"
+              className={INPUT_CLASS}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </label>
+        </div>
+        {result.status === "LoadingFirstPage" && (
+          <p role="status">Loading history…</p>
         )}
-        <label className="flex flex-col gap-1">
-          History from
-          <input
-            type="date"
-            className={INPUT_CLASS}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          History to
-          <input
-            type="date"
-            className={INPUT_CLASS}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </label>
+        {result.status !== "LoadingFirstPage" && !result.results.length && (
+          <p>No deliveries in this period.</p>
+        )}
+        {result.results.map((row) => (
+          <DeliveryCard key={row._id} delivery={row} role={role} />
+        ))}
+        {result.status !== "Exhausted" && (
+          <button
+            type="button"
+            disabled={result.status !== "CanLoadMore"}
+            className={SECONDARY_BUTTON_CLASS}
+            onClick={() => result.loadMore(10)}
+          >
+            Load more deliveries
+          </button>
+        )}
       </div>
-      {result.status === "LoadingFirstPage" && (
-        <p role="status">Loading history…</p>
-      )}
-      {result.status !== "LoadingFirstPage" && !result.results.length && (
-        <p>No deliveries in this period.</p>
-      )}
-      {result.results.map((row) => (
-        <DeliveryCard key={row._id} delivery={row} role={role} />
-      ))}
-      {result.status !== "Exhausted" && (
-        <button
-          type="button"
-          disabled={result.status !== "CanLoadMore"}
-          className={SECONDARY_BUTTON_CLASS}
-          onClick={() => result.loadMore(10)}
-        >
-          Load more deliveries
-        </button>
-      )}
-    </section>
+    </details>
   );
 }
 export function ForecastPanel({ schoolId }: { schoolId?: Id<"schools"> }) {
@@ -874,41 +772,49 @@ export function DeliveryInbox() {
   const rows = useQuery(api.deliveryNotifications.inbox);
   const mark = useMutation(api.deliveryNotifications.markRead);
   const task = useTask();
+  const unread = rows?.filter((row) => !row.readAt).length ?? 0;
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className={SECTION_TITLE_CLASS}>Delivery inbox</h2>
-      {rows === undefined && <p role="status">Loading notifications…</p>}
-      {rows?.length === 0 && <p>No delivery notifications.</p>}
-      <ul className="flex flex-col gap-3">
-        {rows?.map((row) => (
-          <li
-            key={row._id}
-            className={`${PANEL_CLASS} [overflow-wrap:anywhere]`}
-          >
-            <p>{row.body}</p>
-            <p className={MUTED_CLASS}>
-              {receiptTime(row._creationTime)} EAT ·{" "}
-              {row.readAt ? "Read" : "Unread"}
-            </p>
-            {!row.readAt && (
-              <button
-                disabled={task.busy}
-                className={SECONDARY_BUTTON_CLASS}
-                onClick={() =>
-                  void task.run(async () => {
-                    await mark({ id: row._id });
-                    return "Notification marked read.";
-                  })
-                }
-              >
-                Mark read
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <Feedback task={task} />
-    </section>
+    <details>
+      <summary className={DISCLOSURE_SUMMARY_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Delivery inbox</h2>
+        {unread > 0 && (
+          <span className={`${MUTED_CLASS} ml-2`}>{unread} unread</span>
+        )}
+      </summary>
+      <div className="mt-3 flex flex-col gap-3">
+        {rows === undefined && <p role="status">Loading notifications…</p>}
+        {rows?.length === 0 && <p>No delivery notifications.</p>}
+        <ul className="flex flex-col gap-3">
+          {rows?.map((row) => (
+            <li
+              key={row._id}
+              className={`${PANEL_CLASS} [overflow-wrap:anywhere]`}
+            >
+              <p>{row.body}</p>
+              <p className={MUTED_CLASS}>
+                {receiptTime(row._creationTime)} EAT ·{" "}
+                {row.readAt ? "Read" : "Unread"}
+              </p>
+              {!row.readAt && (
+                <button
+                  disabled={task.busy}
+                  className={SECONDARY_BUTTON_CLASS}
+                  onClick={() =>
+                    void task.run(async () => {
+                      await mark({ id: row._id });
+                      return "Notification marked read.";
+                    })
+                  }
+                >
+                  Mark read
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        <Feedback task={task} />
+      </div>
+    </details>
   );
 }
 export function AdminDeliveryReview() {
@@ -924,8 +830,7 @@ export function AdminDeliveryReview() {
         {notice && <p role="status">{notice}</p>}
         <h2 className={SECTION_TITLE_CLASS}>Delivery resolution queue</h2>
         <p>
-          Overdue deliveries, quantity disputes, missing photos and failed or
-          flagged assessments.
+          Overdue deliveries and quantity disputes.
         </p>
         {result.status === "LoadingFirstPage" && (
           <p role="status">Loading review queue…</p>
