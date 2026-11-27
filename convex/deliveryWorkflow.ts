@@ -214,6 +214,17 @@ async function finishReceipt(
     `${portions} received via ${method}.${problem ? ` Problem: ${problem}` : ""}`,
     actor._id,
   );
+  await notifyDelivery(
+    ctx,
+    delivery,
+    `receipt.${status}`,
+    status === "disputed"
+      ? `Delivery ${delivery.reference} disputed: ${portions} of ${delivery.portions} portions received.${problem ? ` Problem: ${problem.slice(0, 80)}` : ""} Admin review needed.`
+      : `Delivery ${delivery.reference} confirmed: ${portions} of ${delivery.portions} portions received.`,
+    status === "disputed"
+      ? ["school", "supplier", "admin"]
+      : ["school", "supplier"],
+  );
   if (evidenceId)
     await ctx.scheduler.runAfter(0, internal.deliveryAssessment.assess, {
       deliveryId: delivery._id,
@@ -464,7 +475,7 @@ export const markOverdue = internalMutation({
       delivery,
       "overdue",
       `Delivery ${delivery.reference ?? delivery.docketRef} is overdue: ${delivery.portions} portions. Contact the school and supplier. Late receipt can still be recorded.`,
-      true,
+      ["school", "supplier", "admin"],
     );
     return true;
   },
@@ -526,6 +537,14 @@ export const resolve = mutation({
       reason,
       actor._id,
     );
+    if (args.decision !== "reviewed")
+      await notifyDelivery(
+        ctx,
+        delivery,
+        `admin.${status}`,
+        `Delivery ${delivery.reference} ${status} by administrator: ${reason.slice(0, 100)}`,
+        ["school", "supplier"],
+      );
     await ctx.db.insert("events", {
       eventId: op.key,
       type: "admin.delivery_resolved",
