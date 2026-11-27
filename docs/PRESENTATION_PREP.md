@@ -101,7 +101,7 @@ A tap is evidence of recorded meal collection; it cannot establish that the chil
 
 ### 6. Show guardian communication
 
-Use school communications at `/school/communications`, or admin message tracing at `/admin/trace`, to show the event's resulting notification and its status.
+Use school communications at `/school/communications` to show the event's resulting notification and its status.
 
 Say: “The rule identifies the relevant message. The policy checks consent preferences, quiet hours, message caps and merging. A recorded notification is distinct from a confirmed handset delivery.”
 

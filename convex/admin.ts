@@ -11,7 +11,7 @@ import { maskMsisdn } from "./lib/mask";
 import { p95, spanDurations } from "./lib/metrics";
 import { evaluatePredicate, parsePredicate } from "./lib/predicate";
 import { assertSingleSegment, renderBody, resolveRecipients, type RuleSeed } from "./rules";
-import { eventPayload, localisedTemplates, notificationStatus, settingValue } from "./schema";
+import { localisedTemplates, settingValue } from "./schema";
 import { readNumberSetting, SettingKey } from "./settings";
 
 const ADMIN_ROLES = ["admin"] as const;
@@ -21,7 +21,6 @@ const NOTIFICATION_SCAN_CAP = 5000;
 const DRY_RUN_PAGE_SIZE = 200;
 const DRY_RUN_MAX_PAGES = 50;
 const DRY_RUN_SAMPLE_SIZE = 5;
-const TRACE_CAP = 100;
 const DEFAULT_COST_PER_SEGMENT_KES = 1;
 const DEFAULT_READER_SILENT_HOURS = 20;
 const MILLISECONDS_PER_HOUR = 3_600_000;
@@ -31,7 +30,6 @@ const ATTEMPTED_STATUSES = new Set<Doc<"notifications">["status"]>(["sent", "del
 
 const SCHEMA_VERSION = 1;
 const MAX_SETTINGS = 100;
-const AUDIT_CAP = 500;
 const METRIC_SAMPLE_CAP = 2000;
 
 export const AdminFailure = {
@@ -47,14 +45,14 @@ export const AuditType = {
   SettingChanged: "admin.setting_changed",
   DeviceRevoked: "admin.device_revoked",
   SimulationRun: "admin.simulation_run",
+  DeviceReprovisioned: "admin.device_reprovisioned",
 } as const;
 
 // FR-802 / NFR-405: every administrative action is an event in the
 // append-only stream, attributed to the acting user. The retention purge
 // skips the admin.* prefix, so this log outlives operational data.
-const AUDITED_TYPES = [...Object.values(AuditType), "meal.override_served", "student.deactivated", "student.tag_assigned"] as const;
 
-async function recordAudit(ctx: MutationCtx, actor: Doc<"users">, type: string, payload: Record<string, string | number | boolean>): Promise<void> {
+export async function recordAudit(ctx: MutationCtx, actor: Doc<"users">, type: string, payload: Record<string, string | number | boolean>): Promise<void> {
   const now = Date.now();
   const eventId = `${type}:${actor._id}:${now}`;
   await recordEvent(ctx, {
@@ -223,31 +221,6 @@ export const revokeDevice = mutation({
     await ctx.db.patch(device._id, { revokedAt: Date.now() });
     await recordAudit(ctx, actor, AuditType.DeviceRevoked, { device_id: device.deviceRef, school_id: device.schoolId });
     return null;
-  },
-});
-
-type AuditEntry = { _id: Id<"events">; type: string; occurredAt: number; payload: Doc<"events">["payload"] };
-
-export async function auditLog(ctx: QueryCtx, range: DateRange): Promise<AuditEntry[]> {
-  const { fromMs, toMs } = rangeMs(range);
-  const entries: AuditEntry[] = [];
-  for (const type of AUDITED_TYPES) {
-    const rows = await ctx.db
-      .query("events")
-      .withIndex("by_type_occurredAt", (q) => q.eq("type", type).gte("occurredAt", fromMs).lt("occurredAt", toMs))
-      .order("desc")
-      .take(AUDIT_CAP);
-    entries.push(...rows.map((row) => ({ _id: row._id, type: row.type, occurredAt: row.occurredAt, payload: row.payload })));
-  }
-  return entries.sort((left, right) => right.occurredAt - left.occurredAt).slice(0, AUDIT_CAP);
-}
-
-export const audit = query({
-  args: { from: v.string(), to: v.string() },
-  returns: v.array(v.object({ _id: v.id("events"), type: v.string(), occurredAt: v.number(), payload: eventPayload })),
-  handler: async (ctx, args) => {
-    await requireRole(ctx, ADMIN_ROLES);
-    return await auditLog(ctx, args);
   },
 });
 
@@ -579,86 +552,3 @@ export const fleet = query({
   },
 });
 
-// ------------------------------------------------------------- AD-07 trace
-
-export type Trace = {
-  correlationId: string;
-  events: { _id: Id<"events">; eventId: string; type: string; occurredAt: number; payload: Doc<"events">["payload"] }[];
-  notifications: { _id: Id<"notifications">; ruleKey: string; maskedMsisdn: string; status: Doc<"notifications">["status"]; body: string; failureReason?: string; suppressionReason?: string; providerMessageId?: string; createdAt: number }[];
-};
-
-// NFR-802 / AD-07: one identifier resolves the whole chain. A notification id
-// or provider message id is first mapped to its correlation id.
-export async function traceChain(ctx: QueryCtx, identifier: string): Promise<Trace> {
-  const correlationId = await resolveCorrelationId(ctx, identifier.trim());
-  const events = await ctx.db
-    .query("events")
-    .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
-    .take(TRACE_CAP);
-  const notifications = await ctx.db
-    .query("notifications")
-    .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
-    .take(TRACE_CAP);
-  return {
-    correlationId,
-    events: events.map((row) => ({ _id: row._id, eventId: row.eventId, type: row.type, occurredAt: row.occurredAt, payload: row.payload })),
-    notifications: notifications.map((row) => ({
-      _id: row._id,
-      ruleKey: row.ruleKey,
-      maskedMsisdn: maskMsisdn(row.msisdn),
-      status: row.status,
-      body: row.body,
-      failureReason: row.failureReason,
-      suppressionReason: row.suppressionReason,
-      providerMessageId: row.providerMessageId,
-      createdAt: row._creationTime,
-    })),
-  };
-}
-
-async function resolveCorrelationId(ctx: QueryCtx, identifier: string): Promise<string> {
-  const notificationId = ctx.db.normalizeId("notifications", identifier);
-  if (notificationId) {
-    const notification = await ctx.db.get(notificationId);
-    if (notification) {
-      return notification.correlationId;
-    }
-  }
-  const byProvider = await ctx.db
-    .query("notifications")
-    .withIndex("by_providerMessageId", (q) => q.eq("providerMessageId", identifier))
-    .first();
-  if (byProvider) {
-    return byProvider.correlationId;
-  }
-  const byEventId = await ctx.db
-    .query("events")
-    .withIndex("by_eventId", (q) => q.eq("eventId", identifier))
-    .unique();
-  return byEventId?.correlationId ?? identifier;
-}
-
-export const trace = query({
-  args: { identifier: v.string() },
-  returns: v.object({
-    correlationId: v.string(),
-    events: v.array(v.object({ _id: v.id("events"), eventId: v.string(), type: v.string(), occurredAt: v.number(), payload: eventPayload })),
-    notifications: v.array(
-      v.object({
-        _id: v.id("notifications"),
-        ruleKey: v.string(),
-        maskedMsisdn: v.string(),
-        status: notificationStatus,
-        body: v.string(),
-        failureReason: v.optional(v.string()),
-        suppressionReason: v.optional(v.string()),
-        providerMessageId: v.optional(v.string()),
-        createdAt: v.number(),
-      }),
-    ),
-  }),
-  handler: async (ctx, args) => {
-    await requireRole(ctx, ADMIN_ROLES);
-    return await traceChain(ctx, args.identifier);
-  },
-});

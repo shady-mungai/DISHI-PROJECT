@@ -35,8 +35,6 @@ export const destinations = {
     ["/communications", "Communications and spend"],
     ["/devices", "Device fleet"],
     ["/rules", "Notification rules"],
-    ["/trace", "Message tracing"],
-    ["/audit", "Audit history"],
     ["/settings", "Settings and retention"],
     ["/dispatch", "Declare dispatch"],
     ["/payment-files", "Payment files"],
