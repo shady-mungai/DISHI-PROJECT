@@ -21,10 +21,8 @@ export const MUTED_CLASS = "text-sm text-muted";
 export const ALERT_CLASS =
   "rounded-control border-2 border-warning bg-warning-surface px-3 py-2 text-sm font-medium text-foreground";
 export const ERROR_CLASS = "text-sm font-medium text-error";
-export const ACTIVE_BADGE_CLASS =
-  "inline-flex w-fit items-center gap-1.5 rounded-control bg-success-surface px-3 py-1 text-sm font-semibold text-success";
-export const INACTIVE_BADGE_CLASS =
-  "inline-flex w-fit items-center gap-1.5 rounded-control bg-accent px-3 py-1 text-sm font-semibold text-muted";
+export const ACTIVE_DOT_CLASS = "size-3.5 shrink-0 rounded-full bg-success";
+export const INACTIVE_DOT_CLASS = "size-3.5 shrink-0 rounded-full bg-border";
 export const CODE_CLASS =
   "rounded-control bg-primary px-3 py-2 font-sans text-2xl tracking-widest text-on-primary";
 export const LINK_CLASS = `underline hover:text-primary ${FOCUS}`;
