@@ -30,6 +30,7 @@ export const SettingKey = {
   SmsCostPerSegmentKes: "smsCostPerSegmentKes",
   DeliveryConfirmWindowMinutes: "deliveryConfirmWindowMinutes",
   SupplierPortionRateKes: "supplierPortionRateKes",
+  PortionGrams: "portionGrams",
   ReaderSilentHours: "readerSilentHours",
   DeliveryMaxAttempts: "deliveryMaxAttempts",
   DeliveryRetryBaseSeconds: "deliveryRetryBaseSeconds",
@@ -156,6 +157,11 @@ export const DEMO_SETTINGS: ReadonlyArray<{
     key: SettingKey.SupplierPortionRateKes,
     value: 25,
     description: "Amount paid to the supplier per confirmed portion",
+  },
+  {
+    key: SettingKey.PortionGrams,
+    value: 350,
+    description: "Cooked grams in one pupil portion; dispatch converts net kg to portions with it",
   },
   {
     key: SettingKey.ReaderSilentHours,

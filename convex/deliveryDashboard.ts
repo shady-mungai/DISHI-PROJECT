@@ -14,6 +14,8 @@ export function publicDelivery(row: Doc<"deliveries">) {
     serviceDate: row.serviceDate,
     portions: row.portions,
     portionsReceived: row.portionsReceived,
+    containers: row.containers,
+    netKg: row.netKg,
     docketRef: row.docketRef,
     vehicle: row.vehicle,
     reference: row.reference ?? row.docketRef,

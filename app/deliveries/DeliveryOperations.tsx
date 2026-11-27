@@ -92,11 +92,13 @@ export function SupplierDispatch() {
   const task = useTask();
   const key = useRequestId();
   const [schoolId, setSchool] = useState("");
-  const [portions, setPortions] = useState("");
+  const [containers, setContainers] = useState("");
+  const [netKg, setNetKg] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [dish, setDish] = useState("");
   const [result, setResult] = useState<{
     reference: string;
+    portions: number;
     expectedArrivalAt: number;
   } | null>(null);
   return (
@@ -113,13 +115,15 @@ export function SupplierDispatch() {
           void task.run(async () => {
             const input = {
               schoolId: schoolId as Id<"schools">,
-              portions: Number(portions),
+              containers: Number(containers),
+              netKg: Number(netKg),
               vehicle,
               dish,
             };
             const sent = await dispatch({ ...input, requestId: key(input) });
             setResult(sent);
-            setPortions("");
+            setContainers("");
+            setNetKg("");
             return "Dispatch recorded. School notification queued.";
           });
         }}
@@ -141,15 +145,28 @@ export function SupplierDispatch() {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          Portions dispatched
+          Containers
           <input
             required
             type="number"
             min="1"
-            max="1000000"
+            max="1000"
             step="1"
-            value={portions}
-            onChange={(e) => setPortions(e.target.value)}
+            value={containers}
+            onChange={(e) => setContainers(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          Net food weight (kg, without containers)
+          <input
+            required
+            type="number"
+            min="0.1"
+            max="100000"
+            step="0.1"
+            value={netKg}
+            onChange={(e) => setNetKg(e.target.value)}
             className={INPUT_CLASS}
           />
         </label>
@@ -193,6 +210,7 @@ export function SupplierDispatch() {
           <p className={`${CODE_CLASS} [overflow-wrap:anywhere]`}>
             {result.reference}
           </p>
+          <p>Counted as {result.portions} portions.</p>
           <p>Expected by {receiptTime(result.expectedArrivalAt)} EAT.</p>
         </div>
       )}
@@ -678,6 +696,12 @@ export function DeliveryCard({
         {delivery.portions}{" "}
         <span className="text-base font-normal">dispatched</span>
       </p>
+      {delivery.containers !== undefined && (
+        <p>
+          In {delivery.containers} containers · {delivery.netKg} kg net. Check
+          the container count on arrival.
+        </p>
+      )}
       <p>
         Received: {delivery.portionsReceived ?? "Not recorded"} · Served for
         school day: {delivery.servedForDay ?? "Not reconciled"}
