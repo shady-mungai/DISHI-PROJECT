@@ -100,7 +100,7 @@ D1 or KV binding is required: the app renders dynamically and stores data in Con
 
 - Open `https://mlo.2003.studio/` and `/login`; sign in, reload, and sign out.
 - Check each provisioned role's workspace and confirm access restrictions.
-- Verify roster import, deliveries, photo upload/read and AI assessment with test data.
+- Verify roster import, deliveries and receipt-code confirmation with test data.
 - Check SMS/USSD callbacks against the production Convex HTTP actions URL.
 - On Android, sync queued taps on the old reader origin **before** switching.
   Open `https://mlo.2003.studio/reader`, sign in, provision the reader again, and

@@ -89,7 +89,7 @@ In the supplier session, open the delivery and enter the school's code. A matchi
 
 Say: “Confirmation needs both parties: the school issues the code, the supplier enters it. Five wrong attempts lock the code for 15 minutes. Only confirmed receipts reach the payment file.”
 
-Edge case to show if time allows: enter a wrong code and point at the rejection in the delivery timeline. If the supplier cannot enter a code, the school can confirm with a photo instead, and that confirmation always goes to admin review.
+Edge case to show if time allows: enter a wrong code and point at the rejection in the delivery timeline. If a code expires, the school issues a replacement; there is no photo fallback.
 
 ### 5. Record a meal: `/school/service` and `/reader`
 
@@ -173,9 +173,9 @@ Keep this for questions unless it is a central assessed objective.
 
 “The supplier view calculates forecast error and bias for recorded days. The result must be interpreted with its sample size and data source.” Use an actual measured figure only if you have one.
 
-**“Why did you drop AI photo checking?”**
+**“Why did you drop photo evidence?”**
 
-“A photo can't prove quantity, and it only came from the school. A code the supplier must enter is two-party proof, works with no data connection, and is cheaper. Photos remain a reviewed fallback.”
+“A photo can't prove quantity, and it only came from the school. A code the supplier must enter is two-party proof, works with no data connection, and is cheaper. So photos were removed entirely.”
 
 **“Does a discrepancy prove theft?”**
 

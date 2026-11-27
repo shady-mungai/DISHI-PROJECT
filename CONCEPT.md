@@ -57,7 +57,7 @@ Suppliers record the destination school, portion count, vehicle and delivery doc
 
 Quantity differences or reported problems go to central admin for resolution. Delivery history and timelines help users follow each delivery, while alerts highlight overdue arrivals or missing confirmations.
 
-The school confirms receipt with a one-time code that the supplier enters. If the supplier cannot enter the code, the school can confirm with a photo instead, and central admin reviews it.
+The school confirms receipt with a one-time code that the supplier enters. If the code expires, the school issues a new one. There is no photo fallback.
 
 ## 5. Meal service and NFC reader
 
